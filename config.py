@@ -12,7 +12,7 @@ SUBREDDITS = [
 
 # Scraper settings
 POSTS_PER_SUBREDDIT = 30
-TIME_FILTER = "month"       # last 30 days
+SORT = "top"                # top-scoring posts (no time filter available in this actor)
 TOP_COMMENTS = 10           # top-level comments only, by score
 MAX_COMMENT_WORDS = 150     # truncate each comment before sending to LLM
 

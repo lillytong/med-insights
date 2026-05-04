@@ -1,85 +1,103 @@
+"""
+Reddit scraper backed by Apify actor macrocosmos/reddit-scraper.
+
+The actor returns posts and comments as a flat list (differentiated by dataType).
+This module:
+  1. Runs the actor per subreddit
+  2. Separates posts from comments
+  3. Groups top comments under their parent post
+  4. Checkpoints to disk — rerunning the same day loads from disk
+"""
+
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
-import praw
+from apify_client import ApifyClient
 from dotenv import load_dotenv
 
 import config
 
 load_dotenv()
 
+ACTOR_ID = "RA1CgWSkuTRNdnOAY"  # macrocosmos/reddit-scraper
+
 
 def _hash_author(name: str) -> str:
     return hashlib.sha256(name.encode()).hexdigest()[:12]
 
 
-def _scrape_subreddit(reddit: praw.Reddit, subreddit_name: str) -> list[dict]:
-    subreddit = reddit.subreddit(subreddit_name)
+def _strip_prefix(reddit_id: str) -> str:
+    """Strip Reddit type prefixes: 't3_abc123' → 'abc123'"""
+    return reddit_id.split("_", 1)[-1] if "_" in reddit_id else reddit_id
+
+
+def _scrape_subreddit(client: ApifyClient, subreddit_name: str) -> list[dict]:
+    run = client.actor(ACTOR_ID).call(run_input={
+        "subreddits": [subreddit_name],
+        "sort": config.SORT,
+        "limit": config.POSTS_PER_SUBREDDIT * 3,  # buffer: actor limit includes comments
+        "proxyConfiguration": {"useApifyProxy": True},
+    })
+
+    items = list(client.dataset(run["defaultDatasetId"]).iterate_items())
+
+    # Separate posts from comments
+    posts_raw = [i for i in items if i.get("dataType") == "post"]
+    comments_raw = [i for i in items if i.get("dataType") == "comment"]
+
+    # Drop bots, AutoModerator, NSFW, promoted
+    posts_raw = [
+        p for p in posts_raw
+        if p.get("username") not in ("AutoModerator", None, "")
+        and not p.get("isNsfw", False)
+        and not p.get("promoted", False)
+    ]
+
+    # Index comments by parent post ID for fast lookup
+    comments_by_post: dict[str, list[dict]] = {}
+    for c in comments_raw:
+        parent = _strip_prefix(c.get("parentId", ""))
+        comments_by_post.setdefault(parent, []).append(c)
+
     posts = []
+    for p in posts_raw[:config.POSTS_PER_SUBREDDIT]:
+        post_id = _strip_prefix(p["id"])
 
-    # Fetch more than needed to account for posts dropped by ad/bot filtering
-    for submission in subreddit.top(time_filter=config.TIME_FILTER, limit=config.POSTS_PER_SUBREDDIT * 2):
-        if len(posts) >= config.POSTS_PER_SUBREDDIT:
-            break
-
-        # Drop pinned mod announcements and weekly megathreads
-        if submission.stickied:
-            continue
-        # Drop AutoModerator and bot-posted content
-        if str(submission.author) in ("AutoModerator", "None", "") or submission.author is None:
-            continue
-        # Drop mod-distinguished posts (announcements, rule reminders)
-        if submission.distinguished:
-            continue
-        # Drop promoted/sponsored posts (Reddit ads)
-        if getattr(submission, "promoted", False):
-            continue
-
-        # replace_more(limit=0) skips "load more" expansions — critical for speed
-        submission.comments.replace_more(limit=0)
-
-        # Top-level comments only, sorted by score
-        top_comments = sorted(
-            [
-                c for c in submission.comments
-                if hasattr(c, "body") and c.body not in ("[deleted]", "[removed]")
-            ],
-            key=lambda c: c.score,
+        # Top-level comments for this post, sorted by score, capped at TOP_COMMENTS
+        raw_comments = sorted(
+            comments_by_post.get(post_id, []),
+            key=lambda c: c.get("score", 0),
             reverse=True,
         )[:config.TOP_COMMENTS]
 
+        community = p.get("communityName", subreddit_name).lstrip("r/")
+
         posts.append({
-            "post_id": submission.id,
+            "post_id": post_id,
             "source": "reddit",
-            "community": subreddit_name,
-            "title": submission.title,
-            "body": submission.selftext,
-            "author_hash": _hash_author(str(submission.author)),
-            "timestamp": datetime.fromtimestamp(submission.created_utc, tz=timezone.utc).isoformat(),
-            "score": submission.score,
-            "comment_count": submission.num_comments,
-            "url": f"https://reddit.com{submission.permalink}",
-            "flair": submission.link_flair_text or "",
-            "top_comments": [{"body": c.body, "score": c.score} for c in top_comments],
+            "community": community,
+            "title": p.get("title", ""),
+            "body": p.get("body", ""),
+            "author_hash": _hash_author(p.get("username", "")),
+            "timestamp": p.get("createdAt", ""),
+            "score": p.get("score", 0),
+            "comment_count": p.get("num_comments", 0),
+            "url": p.get("url", ""),
+            "flair": "",  # not provided by this actor
+            "top_comments": [
+                {"body": c.get("body", ""), "score": c.get("score", 0)}
+                for c in raw_comments
+            ],
         })
 
     return posts
 
 
 def scrape_all(checkpoint_dir: str) -> list[dict]:
-    """
-    Scrape all configured subreddits.
-    Results are checkpointed to disk per subreddit per day — rerunning the same
-    day loads from disk instead of hitting the Reddit API again.
-    """
-    reddit = praw.Reddit(
-        client_id=os.environ["REDDIT_CLIENT_ID"],
-        client_secret=os.environ["REDDIT_CLIENT_SECRET"],
-        user_agent=os.environ["REDDIT_USER_AGENT"],
-    )
+    client = ApifyClient(os.environ["APIFY_API_TOKEN"])
 
     date_str = datetime.now().strftime("%Y-%m-%d")
     run_dir = Path(checkpoint_dir) / date_str
@@ -94,7 +112,7 @@ def scrape_all(checkpoint_dir: str) -> list[dict]:
             posts = [json.loads(line) for line in checkpoint_file.read_text().splitlines() if line]
         else:
             print(f"  [scrape] r/{subreddit_name} ...")
-            posts = _scrape_subreddit(reddit, subreddit_name)
+            posts = _scrape_subreddit(client, subreddit_name)
             with checkpoint_file.open("w") as f:
                 for post in posts:
                     f.write(json.dumps(post) + "\n")

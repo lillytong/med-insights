@@ -2,23 +2,13 @@
 Rule-based pre-filter. Zero API cost — runs entirely in Python.
 Eliminates obvious noise before any LLM call.
 
-Gates run cheapest-to-most-expensive: deleted → engagement → flair → keyword → length.
-Each gate that fires saves downstream cost.
+Gates run cheapest-to-most-expensive: deleted → engagement → keyword → length.
+Note: flair filtering removed — not provided by the Apify actor.
 """
 
 import config
 from pipeline.harmonizer import UnifiedPost
 
-# Known off-topic flairs across medical subreddits
-BLOCKED_FLAIRS = {
-    "meme", "humor", "humour", "shitpost", "off topic", "off-topic",
-    "meta", "residency application", "step 1", "step 2", "step 3",
-    "match", "img", "funny", "rant", "weekly thread", "daily thread",
-    "announcements", "mod post", "advertisement", "sponsored",
-}
-
-# Title substrings that signal student/application/non-clinical content.
-# Lowercase — compared against post.title.lower()
 BLOCKED_TITLE_KEYWORDS = [
     # Exams & applications
     "usmle", "step 1", "step 2", "step 3", "step1", "step2", "step3",
@@ -30,6 +20,8 @@ BLOCKED_TITLE_KEYWORDS = [
     "happy doctors day", "congratulations", "welcome to the sub",
     # Explicit humor/meme
     "[meme]", "[humor]", "[shitpost]",
+    # Recurring mod megathreads
+    "weekly thread", "biweekly", "monthly thread", "daily thread",
 ]
 
 
@@ -38,22 +30,18 @@ def _check(post: UnifiedPost) -> tuple[bool, str]:
     if post.body in ("[deleted]", "[removed]") and len(post.title.split()) < 8:
         return False, "deleted/removed with short title"
 
-    # 2. Engagement floor — community didn't find it worth engaging with
+    # 2. Engagement floor
     if post.score < config.MIN_SCORE and post.comment_count < config.MIN_COMMENTS:
         return False, f"low engagement (score={post.score}, comments={post.comment_count})"
 
-    # 3. Flair blocklist
-    if post.flair and post.flair.lower().strip() in BLOCKED_FLAIRS:
-        return False, f"blocked flair: {post.flair!r}"
-
-    # 4. Title keyword blocklist
+    # 3. Title keyword blocklist
     title_lower = post.title.lower()
     for kw in BLOCKED_TITLE_KEYWORDS:
         if kw in title_lower:
             return False, f"blocked keyword in title: {kw!r}"
 
-    # 5. Body too short to contain a real clinical problem.
-    # High-engagement posts skip this gate — the community already validated them.
+    # 4. Body too short to contain a real clinical problem.
+    # High-engagement posts skip this gate — community already validated them.
     body_words = len(post.body.split())
     title_words = len(post.title.split())
     high_engagement = post.score >= 50 or post.comment_count >= 20
