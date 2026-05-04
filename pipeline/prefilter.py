@@ -2,12 +2,16 @@
 Rule-based pre-filter. Zero API cost — runs entirely in Python.
 Eliminates obvious noise before any LLM call.
 
-Gates run cheapest-to-most-expensive: deleted → engagement → keyword → length.
+Gates: deleted → link-only → engagement → keyword → length.
 Note: flair filtering removed — not provided by the Apify actor.
 """
 
+import re
+
 import config
 from pipeline.harmonizer import UnifiedPost
+
+_URL_RE = re.compile(r"https?://\S+")
 
 BLOCKED_TITLE_KEYWORDS = [
     # Exams & applications
@@ -25,22 +29,32 @@ BLOCKED_TITLE_KEYWORDS = [
 ]
 
 
+def _is_link_only(body: str) -> bool:
+    """True if the body has no substantive text beyond URLs."""
+    text = _URL_RE.sub("", body).strip()
+    return len(text.split()) < 10
+
+
 def _check(post: UnifiedPost) -> tuple[bool, str]:
     # 1. Deleted or removed
     if post.body in ("[deleted]", "[removed]") and len(post.title.split()) < 8:
         return False, "deleted/removed with short title"
 
-    # 2. Engagement floor
+    # 2. Link-only post — body is empty or just a URL (YouTube, news article, etc.)
+    if _is_link_only(post.body):
+        return False, "link-only post (no substantive body text)"
+
+    # 3. Engagement floor
     if post.score < config.MIN_SCORE and post.comment_count < config.MIN_COMMENTS:
         return False, f"low engagement (score={post.score}, comments={post.comment_count})"
 
-    # 3. Title keyword blocklist
+    # 4. Title keyword blocklist
     title_lower = post.title.lower()
     for kw in BLOCKED_TITLE_KEYWORDS:
         if kw in title_lower:
             return False, f"blocked keyword in title: {kw!r}"
 
-    # 4. Body too short to contain a real clinical problem.
+    # 5. Body too short to contain a real clinical problem.
     # High-engagement posts skip this gate — community already validated them.
     body_words = len(post.body.split())
     title_words = len(post.title.split())
