@@ -7,6 +7,7 @@ SUBREDDITS = [
     "cardiology",         # specialty-specific
     "neurology",          # specialty-specific
     "criticalcare",       # ICU/hospital medicine
+    "surgery",            # surgical specialty discussions
 ]
 
 # Scraper settings

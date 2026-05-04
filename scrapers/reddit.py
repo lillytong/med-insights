@@ -34,6 +34,9 @@ def _scrape_subreddit(reddit: praw.Reddit, subreddit_name: str) -> list[dict]:
         # Drop mod-distinguished posts (announcements, rule reminders)
         if submission.distinguished:
             continue
+        # Drop promoted/sponsored posts (Reddit ads)
+        if getattr(submission, "promoted", False):
+            continue
 
         # replace_more(limit=0) skips "load more" expansions — critical for speed
         submission.comments.replace_more(limit=0)
