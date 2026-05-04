@@ -1,4 +1,4 @@
-# med-topics-synthesizer
+# med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
 
@@ -9,6 +9,7 @@ Medical professionals congregate in online communities to discuss cases, share f
 **Data sources:**
 - Medical subreddits on Reddit (e.g. r/medicine, r/medicalschool, r/askdocs, specialty-specific subs)
 - Facebook groups for doctors and healthcare professionals
+- Stack Exchange
 
 **What it surfaces:**
 - Recurring clinical challenges physicians face
