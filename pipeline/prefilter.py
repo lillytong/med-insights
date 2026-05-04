@@ -22,11 +22,6 @@ BLOCKED_TITLE_KEYWORDS = [
     "[meme]", "[humor]", "[shitpost]",
     # Recurring mod megathreads
     "weekly thread", "biweekly", "monthly thread", "daily thread",
-    # Lifestyle / off-topic social posts
-    "vacation", "vacations", "what car", "what do you drive",
-    "how do you unwind", "hobbies", "what do you do for fun",
-    "fun post", "light-hearted", "salary", "how much do you make",
-    "what do doctors eat", "dating", "tinder", "relationships",
 ]
 
 
