@@ -20,7 +20,21 @@ def _scrape_subreddit(reddit: praw.Reddit, subreddit_name: str) -> list[dict]:
     subreddit = reddit.subreddit(subreddit_name)
     posts = []
 
-    for submission in subreddit.top(time_filter=config.TIME_FILTER, limit=config.POSTS_PER_SUBREDDIT):
+    # Fetch more than needed to account for posts dropped by ad/bot filtering
+    for submission in subreddit.top(time_filter=config.TIME_FILTER, limit=config.POSTS_PER_SUBREDDIT * 2):
+        if len(posts) >= config.POSTS_PER_SUBREDDIT:
+            break
+
+        # Drop pinned mod announcements and weekly megathreads
+        if submission.stickied:
+            continue
+        # Drop AutoModerator and bot-posted content
+        if str(submission.author) in ("AutoModerator", "None", "") or submission.author is None:
+            continue
+        # Drop mod-distinguished posts (announcements, rule reminders)
+        if submission.distinguished:
+            continue
+
         # replace_more(limit=0) skips "load more" expansions — critical for speed
         submission.comments.replace_more(limit=0)
 

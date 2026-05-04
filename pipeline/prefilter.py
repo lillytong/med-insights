@@ -14,6 +14,7 @@ BLOCKED_FLAIRS = {
     "meme", "humor", "humour", "shitpost", "off topic", "off-topic",
     "meta", "residency application", "step 1", "step 2", "step 3",
     "match", "img", "funny", "rant", "weekly thread", "daily thread",
+    "announcements", "mod post", "advertisement", "sponsored",
 }
 
 # Title substrings that signal student/application/non-clinical content.

@@ -1,10 +1,12 @@
-# Subreddits to monitor — Tier 1 high-signal physician communities
+# Subreddits to monitor — physician-focused, clinical signal, low-to-moderate noise
 SUBREDDITS = [
-    "medicine",
-    "emergencymedicine",
-    "hospitalist",
-    "residency",
-    "anesthesiology",
+    "medicine",           # largest physician community
+    "emergencymedicine",  # best signal-to-noise of any medical sub
+    "psychiatry",         # 149K members, clinical focus
+    "Radiology",          # professional, well-moderated
+    "cardiology",         # specialty-specific
+    "neurology",          # specialty-specific
+    "criticalcare",       # ICU/hospital medicine
 ]
 
 # Scraper settings
