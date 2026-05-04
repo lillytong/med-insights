@@ -38,7 +38,9 @@ def _scrape_subreddit(client: ApifyClient, subreddit_name: str) -> list[dict]:
     run = client.actor(ACTOR_ID).call(run_input={
         "subreddits": [subreddit_name],
         "sort": config.SORT,
-        "limit": config.POSTS_PER_SUBREDDIT * 3,  # buffer: actor limit includes comments
+        # limit = total items (posts + comments combined).
+        # Each post brings ~TOP_COMMENTS comment items, so multiply accordingly.
+        "limit": config.POSTS_PER_SUBREDDIT * (config.TOP_COMMENTS + 1) * 2,
         "proxyConfiguration": {"useApifyProxy": True},
     })
 
