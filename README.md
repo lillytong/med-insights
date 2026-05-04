@@ -7,9 +7,8 @@ A tool that scrapes medical communities across social media platforms to surface
 Medical professionals congregate in online communities to discuss cases, share frustrations, and debate clinical decisions. This tool taps into those conversations to extract signal from the noise.
 
 **Data sources:**
-- Medical subreddits on Reddit (e.g. r/medicine, r/medicalschool, r/askdocs, specialty-specific subs)
-- Facebook groups for doctors and healthcare professionals
-- Stack Exchange
+- Medical subreddits on Reddit (e.g. r/medicine, r/emergencymedicine, r/hospitalist, specialty-specific subs)
+- Stack Exchange (coming soon)
 
 **What it surfaces:**
 - Recurring clinical challenges physicians face
@@ -30,46 +29,103 @@ Medical professionals congregate in online communities to discuss cases, share f
 - Researchers spotting areas of clinical uncertainty
 - Anyone trying to understand what problems doctors actually have
 
+## Architecture
+
+```
+Reddit (PRAW)
+    │
+    ▼
+Harmonizer          — normalize all sources to a common schema
+    │
+    ▼
+Rule-based pre-filter  — engagement floor, flair/keyword blocklists (zero API cost)
+    │
+    ▼
+Haiku LLM filter    — batched relevance classification (20 posts/call)
+    │
+    ▼
+Sonnet synthesizer  — per-thread structured summary via tool_use
+    │
+    ▼
+Report              — insights_{date}.json + report_{date}.md
+```
+
 ## Setup
 
+**1. Clone the repo**
 ```bash
-# Clone the repo
-git clone https://github.com/lillytong/med-topics-synthesizer.git
-cd med-topics-synthesizer
+git clone https://github.com/lillytong/med-insights.git
+cd med-insights
+```
 
-# Install dependencies
+**2. Install dependencies**
+```bash
 pip install -r requirements.txt
+```
 
-# Configure API credentials
+**3. Configure credentials**
+```bash
 cp .env.example .env
-# Fill in Reddit API keys and Facebook credentials
 ```
 
-## Configuration
+Edit `.env` and fill in:
 
-Set the following environment variables in `.env`:
-
-```
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
-REDDIT_USER_AGENT=
-
-FACEBOOK_ACCESS_TOKEN=
-```
+| Variable | Where to get it |
+|---|---|
+| `REDDIT_CLIENT_ID` | [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps) — create a "script" app |
+| `REDDIT_CLIENT_SECRET` | Same page, shown after creating the app |
+| `REDDIT_USER_AGENT` | Any string, e.g. `med-insights/1.0` |
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
 
 ## Usage
 
 ```bash
-python synthesizer.py --sources reddit facebook --days 7 --output insights.json
+python3 run.py
 ```
 
-## Architecture
+The pipeline will print progress at each stage:
 
 ```
-Scrapers → Raw Posts → NLP Processing → Topic Clustering → Synthesis → Report
+=== med-insights ===
+
+[1/5] Scraping Reddit...
+  [scrape] r/medicine ...
+    → 30 posts saved
+  ...
+
+[2/5] Harmonizing...
+[3/5] Pre-filtering (rules)...
+  kept 98, dropped 52
+
+[4/5] Filtering (Haiku)...
+  [haiku] batch 1/5 (20 posts)...
+  kept 61, dropped 37
+
+[5/5] Synthesizing 61 threads (Sonnet)...
+  [sonnet] 61/61 complete
+
+Done.
+  JSON:     data/output/insights_2026-05-04.json
+  Markdown: data/output/report_2026-05-04.md
 ```
 
-1. **Scrapers** — pull posts and comments from configured sources
-2. **NLP Processing** — clean text, extract entities, filter noise
-3. **Topic Clustering** — group related discussions using embeddings
-4. **Synthesis** — summarize clusters into human-readable insights
+Output files are written to `data/output/`. The Markdown report is the easiest to read.
+
+## Configuration
+
+All tuneable settings are in `config.py`:
+
+| Setting | Default | Description |
+|---|---|---|
+| `SUBREDDITS` | 5 Tier-1 subs | Which communities to scrape |
+| `POSTS_PER_SUBREDDIT` | 30 | Top posts per subreddit |
+| `TIME_FILTER` | `"month"` | Lookback window (`day`, `week`, `month`, `year`) |
+| `TOP_COMMENTS` | 10 | Top-level comments included per thread |
+| `MIN_SCORE` | 10 | Engagement floor (score) |
+| `MIN_COMMENTS` | 5 | Engagement floor (comment count) |
+| `FILTER_BATCH_SIZE` | 20 | Posts per Haiku API call |
+| `SYNTHESIS_CONCURRENCY` | 5 | Concurrent Sonnet requests |
+
+## Reruns
+
+Post IDs are cached in `data/processed_ids.json` after each run. Rerunning the pipeline skips already-processed posts, so weekly runs only process new content. Raw scraped data is checkpointed to `data/raw/{date}/` — rerunning on the same day loads from disk and does not hit the Reddit API again.
