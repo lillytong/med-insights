@@ -32,7 +32,7 @@ jobs:
         run: |
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
-          git add data/synthesis/ data/filter/ data/processed_ids.json dashboard/index.html
+          git add data/synthesis/ data/filter/ data/processed_ids.json data/cluster_labels.json data/cluster_assignments.json dashboard/index.html
           git diff --staged --quiet || git commit -m "data: weekly run $(date +%Y-%m-%d)"
           git pull --rebase origin main
           git push

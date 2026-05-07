@@ -135,4 +135,32 @@ def restore_from_checkpoints() -> int:
 
     print(f"  [chroma] restoring {len(all_summaries)} summaries from checkpoints...")
     all_summaries = embed_summaries(all_summaries)
-    return upsert_summaries(all_summaries)
+    n = upsert_summaries(all_summaries)
+
+    # Restore cluster assignments if available
+    assignments_path = Path("data") / "cluster_assignments.json"
+    if assignments_path.exists():
+        print(f"  [chroma] restoring cluster assignments...")
+        assignments = json.loads(assignments_path.read_text())
+        collection = _get_collection()
+        data = collection.get(include=["metadatas"])
+
+        update_ids, update_metadatas = [], []
+        for pid, meta in zip(data["ids"], data["metadatas"]):
+            if pid in assignments:
+                new_meta = dict(meta)
+                new_meta["cluster_id"] = assignments[pid]["cluster_id"]
+                new_meta["umap_x"]     = assignments[pid]["umap_x"]
+                new_meta["umap_y"]     = assignments[pid]["umap_y"]
+                update_ids.append(pid)
+                update_metadatas.append(new_meta)
+
+        batch = 500
+        for start in range(0, len(update_ids), batch):
+            collection.update(
+                ids=update_ids[start:start + batch],
+                metadatas=update_metadatas[start:start + batch],
+            )
+        print(f"  [chroma] restored cluster assignments for {len(update_ids)} posts")
+
+    return n

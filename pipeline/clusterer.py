@@ -202,12 +202,21 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
             metadatas=update_metadatas[start:start + batch],
         )
 
-    # --- Persist labels so dashboard can regenerate without re-calling Sonnet ---
-    labels_path = Path(config.CHROMA_DIR) / "cluster_labels.json"
-    labels_path.parent.mkdir(parents=True, exist_ok=True)
-    labels_path.write_text(json.dumps(
+    # --- Persist cluster data to data/ so it survives across CI runs ---
+    data_dir = Path("data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Labels: cluster_id → theme label
+    (data_dir / "cluster_labels.json").write_text(json.dumps(
         {str(r.cluster_id): r.label for r in results}, indent=2
     ))
+
+    # Assignments: post_id → cluster_id + 2D coords
+    assignments = {
+        pid: {"cluster_id": int(labels[i]), "umap_x": float(coords_2d[i][0]), "umap_y": float(coords_2d[i][1])}
+        for i, pid in enumerate(ids)
+    }
+    (data_dir / "cluster_assignments.json").write_text(json.dumps(assignments, indent=2))
 
     print(f"  [clusterer] done — {len(results)} clusters (including noise)")
     return results
@@ -223,7 +232,7 @@ def load_cached_results() -> list[ClusterResult]:
     from collections import Counter
     from pathlib import Path
 
-    labels_path = Path(config.CHROMA_DIR) / "cluster_labels.json"
+    labels_path = Path("data") / "cluster_labels.json"
     if not labels_path.exists():
         return []
 
