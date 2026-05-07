@@ -129,18 +129,23 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   .stat .label {{ font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;
                   letter-spacing: 0.05em; }}
   header .meta {{ font-size: 0.75rem; color: #94a3b8; flex-shrink: 0; }}
-  .main {{ display: grid; grid-template-columns: 1fr 300px 240px;
+  .main {{ display: grid; grid-template-columns: 1fr 320px;
            gap: 0; height: calc(100vh - 53px); }}
   .chart-area {{ padding: 20px 32px; overflow: hidden; background: #f8fafc; }}
   .chart-area h2 {{ font-size: 0.9rem; color: #94a3b8; text-transform: uppercase;
                     letter-spacing: 0.08em; margin-bottom: 16px; }}
   #bubble-chart {{ width: 100%; height: calc(100% - 36px); }}
   .sidebar {{ border-left: 1px solid #e2e8f0; background: #fff;
-              overflow-y: auto; padding: 16px 20px;
-              display: flex; flex-direction: column; gap: 0; }}
-  .right-panel {{ border-left: 1px solid #e2e8f0; background: #fff;
-                  overflow-y: auto; padding: 16px 20px;
-                  display: flex; flex-direction: column; gap: 24px; }}
+              display: flex; flex-direction: column; overflow: hidden; }}
+  .tab-bar {{ display: flex; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }}
+  .tab-btn {{ flex: 1; padding: 10px 0; font-size: 0.78rem; font-weight: 500;
+              color: #94a3b8; background: none; border: none; cursor: pointer;
+              border-bottom: 2px solid transparent; margin-bottom: -1px;
+              transition: color 0.15s; }}
+  .tab-btn:hover {{ color: #334155; }}
+  .tab-btn.active {{ color: #0f172a; border-bottom-color: #0284c7; }}
+  .tab-content {{ display: none; flex: 1; overflow-y: auto; padding: 16px 20px; }}
+  .tab-content.active {{ display: flex; flex-direction: column; gap: 20px; }}
   .panel h2 {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;
                letter-spacing: 0.08em; margin-bottom: 14px; }}
   .bar-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -204,20 +209,22 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   </div>
 
   <div class="sidebar">
-    <div class="panel">
-      <h2>Cluster detail</h2>
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('clusters')">Cluster Detail</button>
+      <button class="tab-btn" onclick="switchTab('specialty')">Specialty &amp; Sentiment</button>
+    </div>
+    <div class="tab-content active" id="tab-clusters">
       <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
     </div>
-  </div>
-
-  <div class="right-panel">
-    <div class="panel">
-      <h2>Specialty breakdown</h2>
-      <div id="specialty-bars"></div>
-    </div>
-    <div class="panel">
-      <h2>Sentiment distribution</h2>
-      <div id="sentiment-rows"></div>
+    <div class="tab-content" id="tab-specialty">
+      <div class="panel">
+        <h2>Specialty breakdown</h2>
+        <div id="specialty-bars"></div>
+      </div>
+      <div class="panel">
+        <h2>Sentiment distribution</h2>
+        <div id="sentiment-rows"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -297,7 +304,7 @@ function drawBubbles() {{
       tooltip.style.top  = (event.clientY - 10) + "px";
     }})
     .on("mouseleave", () => {{ tooltip.style.opacity = "0"; }})
-    .on("click", (event, d) => showDetail(d));
+    .on("click", (event, d) => {{ switchTab("clusters"); showDetail(d); }});
 
   nodes.append("circle")
     .attr("r", d => rScale(d.post_count))
@@ -345,6 +352,13 @@ function drawBubbles() {{
       .attr("dy", (_, i) => i === 0 ? -(visibleLines.length - 1) * lineH / 2 : lineH)
       .text(t => t);
   }});
+}}
+
+function switchTab(name) {{
+  document.querySelectorAll(".tab-btn").forEach((b, i) =>
+    b.classList.toggle("active", i === (name === "clusters" ? 0 : 1)));
+  document.querySelectorAll(".tab-content").forEach(c =>
+    c.classList.toggle("active", c.id === "tab-" + name));
 }}
 
 function showDetail(d) {{
