@@ -47,7 +47,7 @@ Haiku LLM filter       — batched relevance classification (20 posts/call)
 Sonnet synthesizer     — per-thread structured summary via tool_use
     │                     checkpointed to data/synthesis/{date}.jsonl
     ▼
-Voyage embedder        — embed each summary (voyage-3-lite, 512 dims)
+bge-small embedder     — embed each summary locally (bge-small-en-v1.5, 384 dims)
     │
     ▼
 ChromaDB               — upsert embeddings + metadata to persistent vector store
@@ -134,12 +134,12 @@ UnifiedPost(
 }
 ```
 
-**Step 6 — Embed** (512-dim Voyage vector added to the summary object)
+**Step 6 — Embed** (384-dim bge-small vector added to the summary object, runs locally)
 ```json
 {
   "post_id": "1ktz4m2",
   "headline": "Prior authorization barriers are delaying clozapine access...",
-  "embedding": [0.0412, -0.0837, 0.1204, -0.0531, 0.0093, "...509 more floats..."]
+  "embedding": [0.0412, -0.0837, 0.1204, -0.0531, 0.0093, "...379 more floats..."]
 }
 ```
 
@@ -202,7 +202,6 @@ Edit `.env` and fill in:
 | Variable | Where to get it |
 |---|---|
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
-| `VOYAGE_API_KEY` | [dash.voyageai.com](https://dash.voyageai.com) |
 
 ## Usage
 
@@ -231,8 +230,8 @@ The pipeline will print progress at each stage:
   [checkpoint] 200 already done, 734 remaining
   [sonnet] 734/734 complete
 
-[6/7] Embedding 934 summaries (Voyage)...
-  Done — 512 dims per summary
+[6/7] Embedding 934 summaries (bge-small)...
+  Done — 384 dims per summary
 
 [7/7] Upserting to ChromaDB...
   934 records upserted
@@ -257,8 +256,8 @@ All tuneable settings are in `config.py`:
 | `MAX_COMMENT_WORDS` | 150 | Words per comment sent to LLM |
 | `FILTER_BATCH_SIZE` | 20 | Posts per Haiku API call |
 | `SYNTHESIS_CONCURRENCY` | 2 | Concurrent Sonnet requests |
-| `EMBEDDING_MODEL` | `voyage-3-lite` | Voyage model (512 dims) |
-| `EMBEDDING_BATCH_SIZE` | 128 | Posts per Voyage API call |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local model, no API key, 384 dims |
+| `EMBEDDING_BATCH_SIZE` | 64 | Summaries per encode batch |
 
 ## Reruns & resumability
 
