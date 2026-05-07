@@ -1,3 +1,5 @@
+The diff shows a significant structural change: cluster data (`cluster_labels.json` and `cluster_assignments.json`) is now persisted to `data/` instead of the ChromaDB directory, and cluster assignments are committed to the repo so they survive CI runs (ChromaDB rebuild now restores them). The GitHub Actions workflow is updated to commit these new files. This is behavioral change worth documenting.
+
 # med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
@@ -293,10 +295,10 @@ The pipeline runs automatically every Monday at 9am UTC (5am ET) via GitHub Acti
 
 - Uses the default `POSTS_PER_SUBREDDIT=100` and `TIME_FILTER=week` settings from `config.py`
 - Requires `ANTHROPIC_API_KEY` and (optionally) `SLACK_WEBHOOK_URL` set as repository secrets
-- Commits updated synthesis checkpoints and the refreshed dashboard back to `main`
+- Commits updated synthesis checkpoints, cluster labels, cluster assignments, and the refreshed dashboard back to `main`
 - Can also be triggered manually from the Actions tab via **workflow_dispatch**
 
-ChromaDB doesn't persist between CI jobs, so at the start of each run the pipeline automatically rebuilds the vector store from all synthesis checkpoints committed to the repo before clustering and generating the dashboard.
+ChromaDB doesn't persist between CI jobs, so at the start of each run the pipeline automatically rebuilds the vector store from all synthesis checkpoints committed to the repo before clustering and generating the dashboard. Cluster assignments (`data/cluster_assignments.json`) are also committed to the repo and restored into ChromaDB at rebuild time, so the dashboard reflects the latest clustering without needing to re-run UMAP/HDBSCAN from scratch.
 
 ## Configuration
 
@@ -337,9 +339,4 @@ The pipeline has three layers of caching to avoid redundant work:
 | Layer | Location | What it skips |
 |---|---|---|
 | Scrape cache | `data/raw/{date}/{subreddit}.jsonl` | Re-hitting the Reddit API on same-day reruns |
-| Synthesis checkpoint | `data/synthesis/{date}.jsonl` | Re-synthesizing posts that already completed |
-| Processed ID cache | `data/processed_ids.json` | Posts successfully synthesized in prior runs |
-
-If the pipeline is interrupted mid-synthesis (crash, rate limit, Ctrl+C), rerunning on the same day will skip already-completed summaries and pick up from where it left off.
-
-The clustering and dashboard steps always run fresh on each pipeline execution, reflecting the current full state of ChromaDB. In CI environments where ChromaDB is not persisted, the vector store is automatically rebuilt from all synthesis checkpoints before clustering begins.
+| Synthesis checkpoint | `data/synthesis/{date}.json
