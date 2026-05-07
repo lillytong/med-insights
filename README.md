@@ -1,12 +1,3 @@
-Looking at the diff, I can see two significant changes:
-
-1. `data/chroma/` is now committed to the repo (added to `git add` in the workflow), meaning ChromaDB is persisted directly rather than rebuilt from checkpoints
-2. The `restore_from_checkpoints()` call has been removed from `run.py`, confirming that ChromaDB is now persisted rather than rebuilt each run
-
-This is a behavioral change - the previous README described ChromaDB as not persisting between CI jobs and being rebuilt from synthesis checkpoints. Now ChromaDB itself is committed. The cluster data location also moved back to `data/chroma/` based on the new file at `data/chroma/cluster_labels.json`.
-
-The README needs to be updated to reflect this architectural change.
-
 # med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
@@ -192,7 +183,7 @@ A single HTML file with embedded D3 visualizations:
 - Bubble chart: one bubble per cluster, sized by post count, colored by dominant sentiment
 - Specialty breakdown bar chart
 - Sentiment distribution
-- Click-to-explore cluster detail panel
+- Click-to-explore cluster detail panel showing top unmet needs and top threads (by comment count) for each cluster
 
 **Step 10 — Report** (`data/output/{date}/insights_{date}.json`, one entry per summary)
 ```json
@@ -334,6 +325,7 @@ Clustering is controlled by a single parameter passed to `pipeline/clusterer.py`
 | Parameter | Default | Description |
 |---|---|---|
 | `min_cluster_size` | `5` | Minimum posts to form a cluster (HDBSCAN). Lower = more, smaller clusters. Raise for fewer, broader themes. |
+| `SAMPLE_SIZE` | `10` | Top posts shown per cluster in the dashboard detail panel (ranked by comment count). |
 
 Posts that don't belong to any cluster are labeled noise and excluded from the dashboard bubble chart and Slack theme summary.
 
@@ -343,4 +335,4 @@ The pipeline has three layers of caching to avoid redundant work:
 
 | Layer | Location | What it skips |
 |---|---|---|
-| Scrape cache | `data/raw/{date}/{su
+| Scrape cache | `data/raw/{date}/{su` |
