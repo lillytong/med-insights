@@ -1,7 +1,6 @@
 .env
 data/raw/
 data/output/
-data/chroma/
 __pycache__/
 *.pyc
 .DS_Store

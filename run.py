@@ -23,7 +23,7 @@ from pipeline.prefilter import prefilter
 from pipeline.filter import llm_filter
 from pipeline.synthesizer import synthesize_all
 from pipeline.embedder import embed_summaries
-from store.chroma import upsert_summaries, restore_from_checkpoints
+from store.chroma import upsert_summaries
 from pipeline.clusterer import cluster
 from dashboard.generate import generate as generate_dashboard
 from output.report import save_json, save_markdown
@@ -45,10 +45,6 @@ def _save_cache(processed_ids: set[str]) -> None:
 def main():
     print("\n=== med-insights ===\n")
 
-    # Restore ChromaDB from checkpoints if empty (e.g. fresh CI environment)
-    n_restored = restore_from_checkpoints()
-    if n_restored:
-        print(f"  Restored {n_restored} records from synthesis checkpoints\n")
 
     from datetime import datetime
     date_str = datetime.now().strftime("%Y-%m-%d")
