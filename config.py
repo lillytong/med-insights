@@ -49,11 +49,12 @@ SONNET_MODEL = "claude-sonnet-4-6"
 SYNTHESIS_CONCURRENCY = 2   # concurrent Sonnet requests
 
 # Embedding settings
-EMBEDDING_MODEL = "voyage-3-lite"   # 512 dims, $0.02/1M tokens
-EMBEDDING_BATCH_SIZE = 128          # Voyage API max per request
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"   # 384 dims, local, no API key, ~130MB
+EMBEDDING_BATCH_SIZE = 64                    # sentences per encode batch
 
 # Paths
 RAW_DATA_DIR = "data/raw"
+FILTER_DIR = "data/filter"
 SYNTHESIS_DIR = "data/synthesis"
 OUTPUT_DIR = "data/output"
 CACHE_FILE = "data/processed_ids.json"

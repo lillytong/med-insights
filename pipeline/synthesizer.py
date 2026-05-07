@@ -105,7 +105,7 @@ async def _synthesize_one(post: UnifiedPost, semaphore: asyncio.Semaphore) -> Op
             try:
                 response = await _client.messages.create(
                     model=config.SONNET_MODEL,
-                    max_tokens=512,
+                    max_tokens=900,
                     system=(
                         "You are a medical insights analyst. Synthesize Reddit threads from physician "
                         "communities into structured clinical insights. Focus on recurring pain points, "
