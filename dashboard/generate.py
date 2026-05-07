@@ -47,6 +47,7 @@ def _clusters_to_json(clusters: list[ClusterResult]) -> str:
             "color":             _SENTIMENT_COLORS.get(c.dominant_sentiment, "#6b7280"),
             "communities":       c.communities,
             "top_unmet_needs":   c.top_unmet_needs[:3],
+            "sample_posts":      c.sample_posts,   # top 10 by comment_count, fixed size
             "x":                 c.x,
             "y":                 c.y,
         })
@@ -156,6 +157,11 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
                                 font-size: 0.72rem; color: #475569; }}
   #detail-panel ul {{ padding-left: 14px; color: #334155; }}
   #detail-panel li {{ margin-bottom: 4px; }}
+  .sample-post {{ margin-bottom: 8px; }}
+  .sample-post a {{ color: #0284c7; text-decoration: none; font-size: 0.8rem;
+                    line-height: 1.4; display: block; }}
+  .sample-post a:hover {{ text-decoration: underline; }}
+  .sample-meta {{ font-size: 0.7rem; color: #94a3b8; }}
   .tooltip {{ position: fixed; background: #fff; border: 1px solid #e2e8f0;
               box-shadow: 0 4px 12px rgba(0,0,0,0.08);
               padding: 10px 14px; border-radius: 6px; font-size: 0.8rem;
@@ -322,14 +328,22 @@ function drawBubbles() {{
 function showDetail(d) {{
   const needs = d.top_unmet_needs.length
     ? "<ul>" + d.top_unmet_needs.map(n => `<li>${{n}}</li>`).join("") + "</ul>"
-    : "<span style='color:#475569'>No unmet needs recorded</span>";
+    : "<span style='color:#94a3b8'>No unmet needs recorded</span>";
   const tags = d.communities.map(c => `<span class="detail-tag">r/${{c}}</span>`).join("");
+  const posts = d.sample_posts.length
+    ? d.sample_posts.map(p => `
+        <div class="sample-post">
+          <a href="${{p.url}}" target="_blank">${{p.headline}}</a>
+          <span class="sample-meta">r/${{p.community}} · ${{p.comment_count}} comments</span>
+        </div>`).join("")
+    : "<span style='color:#94a3b8'>No posts</span>";
   document.getElementById("detail-panel").innerHTML = `
     <div class="detail-title">${{d.label}}</div>
     <div class="detail-label">Posts</div>${{d.post_count}}
     <div class="detail-label">Dominant sentiment</div>${{d.dominant_sentiment}}
     <div class="detail-label">Communities</div>${{tags}}
     <div class="detail-label">Top unmet needs</div>${{needs}}
+    <div class="detail-label">Top threads (spot-check)</div>${{posts}}
   `;
 }}
 

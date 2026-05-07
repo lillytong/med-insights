@@ -20,6 +20,8 @@ import numpy as np
 import config
 
 
+SAMPLE_SIZE = 10   # posts shown in dashboard per cluster — fixed regardless of DB size
+
 @dataclass
 class ClusterResult:
     cluster_id: int           # -1 = noise (HDBSCAN outliers)
@@ -28,6 +30,7 @@ class ClusterResult:
     dominant_sentiment: str = ""
     communities: list[str] = field(default_factory=list)   # unique communities present
     top_unmet_needs: list[str] = field(default_factory=list)
+    sample_posts: list[dict] = field(default_factory=list)  # top SAMPLE_SIZE by comment_count
     post_count: int = 0
     # 2D centroid for dashboard bubble placement
     x: float = 0.0
@@ -141,6 +144,7 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
                 "communities": [],
                 "unmet_needs": [],
                 "coords": [],
+                "posts": [],   # for sample — headline + comment_count + url
             }
         cluster_map[cid]["post_ids"].append(pid)
         cluster_map[cid]["docs"].append(doc)
@@ -148,6 +152,12 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
         cluster_map[cid]["communities"].append(meta.get("community", ""))
         cluster_map[cid]["unmet_needs"].append(meta.get("unmet_need", ""))
         cluster_map[cid]["coords"].append(coords_2d[i])
+        cluster_map[cid]["posts"].append({
+            "headline":      meta.get("headline", ""),
+            "comment_count": meta.get("comment_count", 0),
+            "url":           meta.get("url", ""),
+            "community":     meta.get("community", ""),
+        })
 
     # --- Label clusters with Sonnet ---
     anthropic_client = anthropic.Anthropic()
@@ -170,6 +180,7 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
             n for n in data["unmet_needs"]
             if n.lower() not in ("none identified", "none", "n/a", "")
         ][:5]
+        sample = sorted(data["posts"], key=lambda p: p["comment_count"], reverse=True)[:SAMPLE_SIZE]
 
         results.append(ClusterResult(
             cluster_id=cid,
@@ -178,6 +189,7 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
             dominant_sentiment=dominant_sentiment,
             communities=unique_communities,
             top_unmet_needs=top_needs,
+            sample_posts=sample,
             post_count=len(data["post_ids"]),
             x=float(centroid[0]),
             y=float(centroid[1]),
@@ -253,7 +265,7 @@ def load_cached_results() -> list[ClusterResult]:
         if cid not in cluster_map:
             cluster_map[cid] = {
                 "post_ids": [], "sentiments": [], "communities": [],
-                "unmet_needs": [], "xs": [], "ys": [],
+                "unmet_needs": [], "xs": [], "ys": [], "posts": [],
             }
         cluster_map[cid]["post_ids"].append(pid)
         cluster_map[cid]["sentiments"].append(meta.get("sentiment", ""))
@@ -261,10 +273,17 @@ def load_cached_results() -> list[ClusterResult]:
         cluster_map[cid]["unmet_needs"].append(meta.get("unmet_need", ""))
         cluster_map[cid]["xs"].append(meta.get("umap_x", 0.0))
         cluster_map[cid]["ys"].append(meta.get("umap_y", 0.0))
+        cluster_map[cid]["posts"].append({
+            "headline":      meta.get("headline", ""),
+            "comment_count": meta.get("comment_count", 0),
+            "url":           meta.get("url", ""),
+            "community":     meta.get("community", ""),
+        })
 
     results = []
     for cid, d in sorted(cluster_map.items()):
         label = labels_map.get(str(cid), "Unlabeled")
+        sample = sorted(d["posts"], key=lambda p: p["comment_count"], reverse=True)[:SAMPLE_SIZE]
         results.append(ClusterResult(
             cluster_id=cid,
             label=label,
@@ -275,6 +294,7 @@ def load_cached_results() -> list[ClusterResult]:
                 n for n in d["unmet_needs"]
                 if n.lower() not in ("none identified", "none", "n/a", "")
             ][:5],
+            sample_posts=sample,
             post_count=len(d["post_ids"]),
             x=float(sum(d["xs"]) / len(d["xs"])),
             y=float(sum(d["ys"]) / len(d["ys"])),
