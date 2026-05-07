@@ -1,5 +1,6 @@
-The diff shows that output files are now organized into date-based subdirectories (`data/output/{date}/`) instead of flat files in `data/output/`. This is a behavioral change visible to users, so the README needs updating in the Usage and Architecture sections where output paths are mentioned.
+The diff adds a new Slack notification feature with a new dependency and a new configuration variable. This is a meaningful behavioral addition that users need to know about (new `SLACK_WEBHOOK_URL` env var, new optional notification step). The README needs updating in the Setup/credentials table and Usage sections.
 
+```markdown
 # med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
@@ -49,6 +50,9 @@ ChromaDB               — upsert embeddings + metadata to persistent vector sto
     │
     ▼
 Report                 — insights_{date}.json + report_{date}.md
+    │
+    ▼
+Slack (optional)       — digest posted to #med-insights via Incoming Webhook
 ```
 
 ### Data shape at each step
@@ -197,6 +201,7 @@ Edit `.env` and fill in:
 | Variable | Where to get it |
 |---|---|
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) |
+| `SLACK_WEBHOOK_URL` | [Slack Incoming Webhooks](https://api.slack.com/messaging/webhooks) — optional, enables run digest in #med-insights |
 
 ## Usage
 
@@ -231,12 +236,16 @@ The pipeline will print progress at each stage:
 [7/7] Upserting to ChromaDB...
   934 records upserted
 
+  [slack] notification sent to #med-insights
+
 Done.
   JSON:     data/output/2026-05-07/insights_2026-05-07.json
   Markdown: data/output/2026-05-07/report_2026-05-07.md
 ```
 
 Output files are written to `data/output/{date}/`. The Markdown report is the easiest to read.
+
+If `SLACK_WEBHOOK_URL` is set, a digest is posted to #med-insights after each run containing run stats, specialty breakdown, sentiment distribution, top unmet needs, and highlighted threads. If the variable is unset, the notification is skipped silently.
 
 ## Configuration
 
@@ -265,3 +274,4 @@ The pipeline has three layers of caching to avoid redundant work:
 | Processed ID cache | `data/processed_ids.json` | Posts successfully synthesized in prior runs |
 
 If the pipeline is interrupted mid-synthesis (crash, rate limit, Ctrl+C), rerunning on the same day will skip already-completed summaries and pick up from where it left off.
+```
