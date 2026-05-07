@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - 'README.md'        # don't trigger on README-only changes
       - '.github/**'       # don't trigger on workflow changes
+  workflow_dispatch:       # allow manual trigger for testing
 
 jobs:
   update-readme:
