@@ -7,8 +7,9 @@ from pipeline.synthesizer import ThreadSummary
 
 
 def save_json(summaries: list[ThreadSummary], output_dir: str) -> str:
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    path = f"{output_dir}/insights_{datetime.now().strftime('%Y-%m-%d')}.json"
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    Path(output_dir, date_str).mkdir(parents=True, exist_ok=True)
+    path = f"{output_dir}/{date_str}/insights_{date_str}.json"
     records = [
         {k: v for k, v in asdict(s).items() if k != "embedding"}
         for s in summaries
@@ -19,9 +20,9 @@ def save_json(summaries: list[ThreadSummary], output_dir: str) -> str:
 
 
 def save_markdown(summaries: list[ThreadSummary], output_dir: str, stats: dict) -> str:
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{output_dir}/report_{date_str}.md"
+    Path(output_dir, date_str).mkdir(parents=True, exist_ok=True)
+    path = f"{output_dir}/{date_str}/report_{date_str}.md"
 
     # Group by community, sort each group by comment_count desc
     by_community: dict[str, list[ThreadSummary]] = {}
