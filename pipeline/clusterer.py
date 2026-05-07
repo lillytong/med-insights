@@ -202,5 +202,72 @@ def cluster(min_cluster_size: int = 5) -> list[ClusterResult]:
             metadatas=update_metadatas[start:start + batch],
         )
 
+    # --- Persist labels so dashboard can regenerate without re-calling Sonnet ---
+    labels_path = Path(config.CHROMA_DIR) / "cluster_labels.json"
+    labels_path.parent.mkdir(parents=True, exist_ok=True)
+    labels_path.write_text(json.dumps(
+        {str(r.cluster_id): r.label for r in results}, indent=2
+    ))
+
     print(f"  [clusterer] done — {len(results)} clusters (including noise)")
+    return results
+
+
+def load_cached_results() -> list[ClusterResult]:
+    """
+    Reconstruct ClusterResult objects from ChromaDB metadata + saved labels.
+    Use this to regenerate the dashboard without re-running UMAP/HDBSCAN/Sonnet.
+    Returns empty list if no cluster data exists yet.
+    """
+    import chromadb
+    from collections import Counter
+    from pathlib import Path
+
+    labels_path = Path(config.CHROMA_DIR) / "cluster_labels.json"
+    if not labels_path.exists():
+        return []
+
+    labels_map = json.loads(labels_path.read_text())   # {str(cid): label}
+
+    client = chromadb.PersistentClient(path=config.CHROMA_DIR)
+    collection = client.get_or_create_collection(
+        config.CHROMA_COLLECTION,
+        metadata={"hnsw:space": "cosine"},
+    )
+    data = collection.get(include=["metadatas"])
+
+    cluster_map: dict[int, dict] = {}
+    for pid, meta in zip(data["ids"], data["metadatas"]):
+        cid = meta.get("cluster_id")
+        if cid is None:
+            continue
+        if cid not in cluster_map:
+            cluster_map[cid] = {
+                "post_ids": [], "sentiments": [], "communities": [],
+                "unmet_needs": [], "xs": [], "ys": [],
+            }
+        cluster_map[cid]["post_ids"].append(pid)
+        cluster_map[cid]["sentiments"].append(meta.get("sentiment", ""))
+        cluster_map[cid]["communities"].append(meta.get("community", ""))
+        cluster_map[cid]["unmet_needs"].append(meta.get("unmet_need", ""))
+        cluster_map[cid]["xs"].append(meta.get("umap_x", 0.0))
+        cluster_map[cid]["ys"].append(meta.get("umap_y", 0.0))
+
+    results = []
+    for cid, d in sorted(cluster_map.items()):
+        label = labels_map.get(str(cid), "Unlabeled")
+        results.append(ClusterResult(
+            cluster_id=cid,
+            label=label,
+            post_ids=d["post_ids"],
+            dominant_sentiment=Counter(d["sentiments"]).most_common(1)[0][0],
+            communities=sorted(set(d["communities"])),
+            top_unmet_needs=[
+                n for n in d["unmet_needs"]
+                if n.lower() not in ("none identified", "none", "n/a", "")
+            ][:5],
+            post_count=len(d["post_ids"]),
+            x=float(sum(d["xs"]) / len(d["xs"])),
+            y=float(sum(d["ys"]) / len(d["ys"])),
+        ))
     return results

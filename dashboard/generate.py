@@ -88,8 +88,14 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
     Returns the path written.
     """
     date_str = datetime.now().strftime("%Y-%m-%d")
-    total_posts = sum(c.post_count for c in clusters if c.cluster_id != -1)
     n_clusters = sum(1 for c in clusters if c.cluster_id != -1)
+
+    # Pull true total from ChromaDB (includes posts added after last cluster run)
+    import chromadb
+    import config as _config
+    _chroma = chromadb.PersistentClient(path=_config.CHROMA_DIR)
+    _col = _chroma.get_or_create_collection(_config.CHROMA_COLLECTION)
+    total_posts = _col.count()
 
     clusters_json    = _clusters_to_json(clusters)
     specialty_json   = _specialty_breakdown_json(clusters)
@@ -105,55 +111,56 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-          background: #0f172a; color: #e2e8f0; min-height: 100vh; }}
-  header {{ padding: 24px 32px; border-bottom: 1px solid #1e293b;
+          background: #f8fafc; color: #1e293b; min-height: 100vh; }}
+  header {{ padding: 24px 32px; border-bottom: 1px solid #e2e8f0; background: #fff;
             display: flex; align-items: center; justify-content: space-between; }}
-  header h1 {{ font-size: 1.4rem; font-weight: 600; color: #f1f5f9; }}
-  header .meta {{ font-size: 0.85rem; color: #64748b; }}
+  header h1 {{ font-size: 1.4rem; font-weight: 600; color: #0f172a; }}
+  header .meta {{ font-size: 0.85rem; color: #94a3b8; }}
   .stats-bar {{ display: flex; gap: 32px; padding: 20px 32px;
-                border-bottom: 1px solid #1e293b; background: #0f172a; }}
+                border-bottom: 1px solid #e2e8f0; background: #fff; }}
   .stat {{ display: flex; flex-direction: column; gap: 2px; }}
-  .stat .value {{ font-size: 1.6rem; font-weight: 700; color: #38bdf8; }}
-  .stat .label {{ font-size: 0.75rem; color: #64748b; text-transform: uppercase;
+  .stat .value {{ font-size: 1.6rem; font-weight: 700; color: #0284c7; }}
+  .stat .label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;
                   letter-spacing: 0.05em; }}
   .main {{ display: grid; grid-template-columns: 1fr 340px;
            gap: 0; height: calc(100vh - 120px); }}
-  .chart-area {{ padding: 24px 32px; overflow: hidden; }}
+  .chart-area {{ padding: 24px 32px; overflow: hidden; background: #f8fafc; }}
   .chart-area h2 {{ font-size: 0.9rem; color: #94a3b8; text-transform: uppercase;
                     letter-spacing: 0.08em; margin-bottom: 16px; }}
   #bubble-chart {{ width: 100%; height: calc(100% - 40px); }}
-  .sidebar {{ border-left: 1px solid #1e293b; padding: 24px 20px;
+  .sidebar {{ border-left: 1px solid #e2e8f0; padding: 24px 20px; background: #fff;
               overflow-y: auto; display: flex; flex-direction: column; gap: 28px; }}
   .panel h2 {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;
                letter-spacing: 0.08em; margin-bottom: 14px; }}
   .bar-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
               font-size: 0.8rem; }}
-  .bar-row .name {{ width: 110px; flex-shrink: 0; color: #cbd5e1; overflow: hidden;
+  .bar-row .name {{ width: 110px; flex-shrink: 0; color: #334155; overflow: hidden;
                     text-overflow: ellipsis; white-space: nowrap; }}
-  .bar-track {{ flex: 1; background: #1e293b; border-radius: 3px; height: 8px; }}
-  .bar-fill {{ height: 8px; border-radius: 3px; background: #38bdf8; }}
-  .bar-count {{ color: #64748b; font-size: 0.75rem; width: 28px; text-align: right; }}
+  .bar-track {{ flex: 1; background: #e2e8f0; border-radius: 3px; height: 8px; }}
+  .bar-fill {{ height: 8px; border-radius: 3px; background: #0284c7; }}
+  .bar-count {{ color: #94a3b8; font-size: 0.75rem; width: 28px; text-align: right; }}
   .sentiment-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
                     font-size: 0.8rem; }}
   .senti-pill {{ padding: 2px 8px; border-radius: 99px; font-size: 0.72rem;
                  font-weight: 500; }}
   .senti-pct {{ margin-left: auto; color: #94a3b8; }}
-  #detail-panel {{ background: #1e293b; border-radius: 8px; padding: 16px;
+  #detail-panel {{ background: #f1f5f9; border-radius: 8px; padding: 16px;
                    font-size: 0.82rem; min-height: 120px; }}
   #detail-panel .detail-title {{ font-size: 0.95rem; font-weight: 600;
-                                  color: #f1f5f9; margin-bottom: 10px; }}
-  #detail-panel .detail-label {{ color: #64748b; font-size: 0.72rem;
+                                  color: #0f172a; margin-bottom: 10px; }}
+  #detail-panel .detail-label {{ color: #94a3b8; font-size: 0.72rem;
                                   text-transform: uppercase; letter-spacing: 0.05em;
                                   margin-top: 10px; margin-bottom: 4px; }}
-  #detail-panel .detail-tag {{ display: inline-block; background: #0f172a;
+  #detail-panel .detail-tag {{ display: inline-block; background: #e2e8f0;
                                 border-radius: 4px; padding: 2px 6px; margin: 2px;
-                                font-size: 0.72rem; color: #94a3b8; }}
-  #detail-panel ul {{ padding-left: 14px; color: #cbd5e1; }}
+                                font-size: 0.72rem; color: #475569; }}
+  #detail-panel ul {{ padding-left: 14px; color: #334155; }}
   #detail-panel li {{ margin-bottom: 4px; }}
-  .tooltip {{ position: fixed; background: #1e293b; border: 1px solid #334155;
+  .tooltip {{ position: fixed; background: #fff; border: 1px solid #e2e8f0;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.08);
               padding: 10px 14px; border-radius: 6px; font-size: 0.8rem;
               pointer-events: none; opacity: 0; transition: opacity 0.15s;
-              max-width: 240px; color: #e2e8f0; z-index: 100; }}
+              max-width: 240px; color: #1e293b; z-index: 100; }}
 </style>
 </head>
 <body>
@@ -182,7 +189,7 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
     </div>
     <div class="panel">
       <h2>Cluster detail</h2>
-      <div id="detail-panel"><span style="color:#475569">Click a bubble to explore</span></div>
+      <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
     </div>
   </div>
 </div>
@@ -270,32 +277,46 @@ function drawBubbles() {{
     .attr("stroke", d => d.color)
     .attr("stroke-width", 1.5);
 
-  nodes.append("text")
-    .attr("text-anchor", "middle")
-    .attr("dy", "0.35em")
-    .attr("font-size", d => Math.max(9, Math.min(12, rScale(d.post_count) / 3)))
-    .attr("fill", "#f1f5f9")
-    .attr("pointer-events", "none")
-    .each(function(d) {{
-      const words = d.label.split(" ");
-      const r = rScale(d.post_count);
-      const lineH = 13;
-      const lines = [];
-      let cur = "";
-      words.forEach(w => {{
-        const test = cur ? cur + " " + w : w;
-        if (test.length * 5.5 > r * 1.6 && cur) {{
-          lines.push(cur); cur = w;
-        }} else cur = test;
-      }});
-      lines.push(cur);
-      d3.select(this).selectAll("tspan")
-        .data(lines)
-        .join("tspan")
-        .attr("x", 0)
-        .attr("dy", (_, i) => i === 0 ? -(lines.length - 1) * lineH / 2 : lineH)
-        .text(t => t);
+  // Only render text when the bubble is big enough to hold at least one word legibly.
+  // Smaller bubbles show nothing — hover tooltip has the full label.
+  nodes.each(function(d) {{
+    const r = rScale(d.post_count);
+    const MIN_R_FOR_TEXT = 22;   // px — below this, text always bleeds out
+    if (r < MIN_R_FOR_TEXT) return;
+
+    const fontSize = Math.max(9, Math.min(11, r / 4));
+    const charW = fontSize * 0.52;   // approximate char width for this font size
+    const maxLineChars = Math.floor((r * 1.7) / charW);  // chord width ≈ 1.7r
+    const lineH = fontSize + 3;
+
+    // Word-wrap into lines that fit inside the chord
+    const words = d.label.split(" ");
+    const lines = [];
+    let cur = "";
+    words.forEach(w => {{
+      const test = cur ? cur + " " + w : w;
+      if (test.length > maxLineChars && cur) {{ lines.push(cur); cur = w; }}
+      else cur = test;
     }});
+    if (cur) lines.push(cur);
+
+    // Drop lines that would overflow vertically (keep only lines that fit in r*1.5 height)
+    const maxLines = Math.floor((r * 1.4) / lineH);
+    const visibleLines = lines.slice(0, maxLines);
+
+    const textEl = d3.select(this).append("text")
+      .attr("text-anchor", "middle")
+      .attr("font-size", fontSize)
+      .attr("fill", "#1e293b")
+      .attr("pointer-events", "none");
+
+    textEl.selectAll("tspan")
+      .data(visibleLines)
+      .join("tspan")
+      .attr("x", 0)
+      .attr("dy", (_, i) => i === 0 ? -(visibleLines.length - 1) * lineH / 2 : lineH)
+      .text(t => t);
+  }});
 }}
 
 function showDetail(d) {{

@@ -15,6 +15,7 @@ Message structure:
 import os
 from collections import Counter
 from datetime import datetime
+from typing import Optional
 
 import requests
 from dotenv import load_dotenv
@@ -36,7 +37,7 @@ def _sentiment_emoji(sentiment: str) -> str:
 
 
 def _build_blocks(summaries: list[ThreadSummary], stats: dict, date_str: str,
-                  clusters: list["ClusterResult"] | None = None) -> list[dict]:
+                  clusters: Optional[list[ClusterResult]] = None) -> list[dict]:
     # --- Specialty breakdown ---
     specialty_counts = Counter(s.community for s in summaries)
     specialty_line = "  ".join(
@@ -143,7 +144,7 @@ def _build_blocks(summaries: list[ThreadSummary], stats: dict, date_str: str,
 
 
 def notify(summaries: list[ThreadSummary], stats: dict,
-           clusters: list["ClusterResult"] | None = None) -> None:
+           clusters: Optional[list[ClusterResult]] = None) -> None:
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
     if not webhook_url:
         print("  [slack] SLACK_WEBHOOK_URL not set — skipping notification")
