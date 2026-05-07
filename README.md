@@ -243,6 +243,8 @@ The pipeline will print progress at each stage:
 ```
 === med-insights ===
 
+  Restored 834 records from synthesis checkpoints
+
 [1/5] Scraping Reddit...
   [cache] r/psychiatry — loading from disk
   ...
@@ -285,21 +287,38 @@ Output files are written to `data/output/{date}/`. The Markdown report is the ea
 
 If `SLACK_WEBHOOK_URL` is set, a digest is posted to #med-insights after each run containing run stats, specialty breakdown, sentiment distribution, top unmet needs, top cluster themes, and highlighted threads. If the variable is unset, the notification is skipped silently.
 
+## Automated weekly runs
+
+The pipeline runs automatically every Monday at 9am UTC (5am ET) via GitHub Actions. Each automated run:
+
+- Uses `POSTS_PER_SUBREDDIT=100` and `TIME_FILTER=week` to scrape the past week's top posts
+- Requires `ANTHROPIC_API_KEY` and (optionally) `SLACK_WEBHOOK_URL` set as repository secrets
+- Commits updated synthesis checkpoints and the refreshed dashboard back to `main`
+- Can also be triggered manually from the Actions tab via **workflow_dispatch**
+
+ChromaDB doesn't persist between CI jobs, so at the start of each run the pipeline automatically rebuilds the vector store from all synthesis checkpoints committed to the repo before clustering and generating the dashboard.
+
 ## Configuration
 
 All tuneable settings are in `config.py`:
 
-| Setting | Default | Description |
-|---|---|---|
-| `SUBREDDITS` | 8 subs | Which communities to scrape |
-| `POSTS_PER_SUBREDDIT` | 500 | Top posts per subreddit |
-| `TIME_FILTER` | `"year"` | Lookback window (`day`, `week`, `month`, `year`) |
-| `TOP_COMMENTS` | 10 | Top-level comments included per thread |
-| `MAX_COMMENT_WORDS` | 150 | Words per comment sent to LLM |
-| `FILTER_BATCH_SIZE` | 20 | Posts per Haiku API call |
-| `SYNTHESIS_CONCURRENCY` | 2 | Concurrent Sonnet requests |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local model, no API key, 384 dims |
-| `EMBEDDING_BATCH_SIZE` | 64 | Summaries per encode batch |
+| Setting | Default | Env override | Description |
+|---|---|---|---|
+| `SUBREDDITS` | 8 subs | — | Which communities to scrape |
+| `POSTS_PER_SUBREDDIT` | 500 | `POSTS_PER_SUBREDDIT` | Top posts per subreddit |
+| `TIME_FILTER` | `"year"` | `TIME_FILTER` | Lookback window (`day`, `week`, `month`, `year`) |
+| `TOP_COMMENTS` | 10 | — | Top-level comments included per thread |
+| `MAX_COMMENT_WORDS` | 150 | — | Words per comment sent to LLM |
+| `FILTER_BATCH_SIZE` | 20 | — | Posts per Haiku API call |
+| `SYNTHESIS_CONCURRENCY` | 2 | — | Concurrent Sonnet requests |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | — | Local model, no API key, 384 dims |
+| `EMBEDDING_BATCH_SIZE` | 64 | — | Summaries per encode batch |
+
+`POSTS_PER_SUBREDDIT` and `TIME_FILTER` can be overridden at runtime without editing `config.py`:
+
+```bash
+POSTS_PER_SUBREDDIT=100 TIME_FILTER=week python run.py
+```
 
 ### Clustering
 
@@ -323,4 +342,4 @@ The pipeline has three layers of caching to avoid redundant work:
 
 If the pipeline is interrupted mid-synthesis (crash, rate limit, Ctrl+C), rerunning on the same day will skip already-completed summaries and pick up from where it left off.
 
-The clustering and dashboard steps always run fresh on each pipeline execution, reflecting the current full state of ChromaDB.
+The clustering and dashboard steps always run fresh on each pipeline execution, reflecting the current full state of ChromaDB. In CI environments where ChromaDB is not persisted, the vector store is automatically rebuilt from all synthesis checkpoints before clustering begins.
