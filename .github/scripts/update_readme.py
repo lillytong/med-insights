@@ -52,7 +52,8 @@ Analyze the diff and decide:
 - If the changes are significant (new features, changed behavior, renamed files, updated schedule, new dependencies, structural changes) → return a fully updated README reflecting the changes. Keep the same tone, format and structure. Only update what actually changed.
 - If the changes are minor (bug fixes, logging tweaks, refactoring with no behavioral change) → respond with exactly: NO_UPDATE
 
-Respond with either the full updated README content, or NO_UPDATE. Nothing else."""
+Respond with either the full updated README content, or NO_UPDATE. Nothing else.
+IMPORTANT: If returning the README, output raw Markdown only — do NOT wrap it in a code block or any other formatting."""
 
     print("Calling Claude Sonnet to analyze changes...")
     message = client.messages.create(

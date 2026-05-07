@@ -1,4 +1,3 @@
-```markdown
 # med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
@@ -325,4 +324,3 @@ The pipeline has three layers of caching to avoid redundant work:
 If the pipeline is interrupted mid-synthesis (crash, rate limit, Ctrl+C), rerunning on the same day will skip already-completed summaries and pick up from where it left off.
 
 The clustering and dashboard steps always run fresh on each pipeline execution, reflecting the current full state of ChromaDB.
-```
