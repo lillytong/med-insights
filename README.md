@@ -2,6 +2,8 @@
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
 
+![Dashboard](dashboard/dashboard_screenshot1.jpg)
+
 ## What it does
 
 Medical professionals congregate in online communities to discuss cases, share frustrations, and debate clinical decisions. This tool taps into those conversations to extract signal from the noise.
