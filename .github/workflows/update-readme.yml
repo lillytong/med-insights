@@ -37,7 +37,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git pull --rebase origin main
           git add README.md
           git diff --staged --quiet || git commit -m "docs: auto-update README for recent changes"
+          git pull --rebase origin main
           git push
