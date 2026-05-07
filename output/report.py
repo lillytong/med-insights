@@ -9,8 +9,12 @@ from pipeline.synthesizer import ThreadSummary
 def save_json(summaries: list[ThreadSummary], output_dir: str) -> str:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     path = f"{output_dir}/insights_{datetime.now().strftime('%Y-%m-%d')}.json"
+    records = [
+        {k: v for k, v in asdict(s).items() if k != "embedding"}
+        for s in summaries
+    ]
     with open(path, "w") as f:
-        json.dump([asdict(s) for s in summaries], f, indent=2)
+        json.dump(records, f, indent=2)
     return path
 
 
