@@ -146,6 +146,7 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   .tab-btn.active {{ color: #0f172a; border-bottom-color: #0284c7; }}
   .tab-content {{ display: none; flex: 1; overflow-y: auto; padding: 16px 20px; }}
   .tab-content.active {{ display: flex; flex-direction: column; gap: 20px; }}
+  #tab-clusters {{ background: #f1f5f9; }}
   .panel h2 {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;
                letter-spacing: 0.08em; margin-bottom: 14px; }}
   .bar-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -160,8 +161,7 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   .senti-pill {{ padding: 2px 8px; border-radius: 99px; font-size: 0.72rem;
                  font-weight: 500; }}
   .senti-pct {{ margin-left: auto; color: #94a3b8; }}
-  #detail-panel {{ background: #f1f5f9; border-radius: 8px; padding: 16px 16px 24px;
-                   font-size: 0.82rem; min-height: 120px; flex: 1; }}
+  #detail-panel {{ font-size: 0.82rem; }}
   #detail-panel .detail-title {{ font-size: 0.95rem; font-weight: 600;
                                   color: #0f172a; margin-bottom: 10px; }}
   #detail-panel .detail-label {{ color: #94a3b8; font-size: 0.72rem;
