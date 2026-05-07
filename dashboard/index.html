@@ -58,6 +58,16 @@
                     line-height: 1.4; display: block; }
   .sample-post a:hover { text-decoration: underline; }
   .sample-meta { font-size: 0.7rem; color: #94a3b8; }
+  .posts-list { position: relative; }
+  .posts-list.collapsed { max-height: 160px; overflow: hidden; }
+  .posts-list.collapsed::after {
+    content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 72px;
+    background: linear-gradient(to bottom, rgba(241,245,249,0) 0%, #f1f5f9 100%);
+    pointer-events: none;
+  }
+  .expand-btn { display: block; margin-top: 6px; font-size: 0.75rem; color: #0284c7;
+                 background: none; border: none; cursor: pointer; padding: 0; }
+  .expand-btn:hover { text-decoration: underline; }
   .tooltip { position: fixed; background: #fff; border: 1px solid #e2e8f0;
               box-shadow: 0 4px 12px rgba(0,0,0,0.08);
               padding: 10px 14px; border-radius: 6px; font-size: 0.8rem;
@@ -82,16 +92,16 @@
 
   <div class="sidebar">
     <div class="panel">
+      <h2>Cluster detail</h2>
+      <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
+    </div>
+    <div class="panel">
       <h2>Specialty breakdown</h2>
       <div id="specialty-bars"></div>
     </div>
     <div class="panel">
       <h2>Sentiment distribution</h2>
       <div id="sentiment-rows"></div>
-    </div>
-    <div class="panel">
-      <h2>Cluster detail</h2>
-      <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
     </div>
   </div>
 </div>
@@ -2077,18 +2087,30 @@ function drawBubbles() {
   });
 }
 
+function expandPosts() {
+  document.getElementById("posts-list").classList.remove("collapsed");
+  document.getElementById("expand-btn").style.display = "none";
+}
+
 function showDetail(d) {
   const needs = d.top_unmet_needs.length
     ? "<ul>" + d.top_unmet_needs.map(n => `<li>${n}</li>`).join("") + "</ul>"
     : "<span style='color:#94a3b8'>No unmet needs recorded</span>";
   const tags = d.communities.map(c => `<span class="detail-tag">r/${c}</span>`).join("");
-  const posts = d.sample_posts.length
-    ? d.sample_posts.map(p => `
-        <div class="sample-post">
-          <a href="${p.url}" target="_blank">${p.headline}</a>
-          <span class="sample-meta">r/${p.community} · ${p.comment_count} comments</span>
-        </div>`).join("")
-    : "<span style='color:#94a3b8'>No posts</span>";
+  let posts;
+  if (!d.sample_posts.length) {
+    posts = "<span style='color:#94a3b8'>No posts</span>";
+  } else {
+    const items = d.sample_posts.map(p => `
+      <div class="sample-post">
+        <a href="${p.url}" target="_blank">${p.headline}</a>
+        <span class="sample-meta">r/${p.community} · ${p.comment_count} comments</span>
+      </div>`).join("");
+    const expandBtn = d.sample_posts.length > 4
+      ? `<button class="expand-btn" id="expand-btn" onclick="expandPosts()">See all ${d.sample_posts.length} threads ↓</button>`
+      : "";
+    posts = `<div class="posts-list${d.sample_posts.length > 4 ? " collapsed" : ""}" id="posts-list">${items}</div>${expandBtn}`;
+  }
   document.getElementById("detail-panel").innerHTML = `
     <div class="detail-title">${d.label}</div>
     <div class="detail-label">Posts</div>${d.post_count}
