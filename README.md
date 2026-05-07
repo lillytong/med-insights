@@ -291,7 +291,7 @@ If `SLACK_WEBHOOK_URL` is set, a digest is posted to #med-insights after each ru
 
 The pipeline runs automatically every Monday at 9am UTC (5am ET) via GitHub Actions. Each automated run:
 
-- Uses `POSTS_PER_SUBREDDIT=100` and `TIME_FILTER=week` to scrape the past week's top posts
+- Uses the default `POSTS_PER_SUBREDDIT=100` and `TIME_FILTER=week` settings from `config.py`
 - Requires `ANTHROPIC_API_KEY` and (optionally) `SLACK_WEBHOOK_URL` set as repository secrets
 - Commits updated synthesis checkpoints and the refreshed dashboard back to `main`
 - Can also be triggered manually from the Actions tab via **workflow_dispatch**
@@ -305,8 +305,8 @@ All tuneable settings are in `config.py`:
 | Setting | Default | Env override | Description |
 |---|---|---|---|
 | `SUBREDDITS` | 8 subs | — | Which communities to scrape |
-| `POSTS_PER_SUBREDDIT` | 500 | `POSTS_PER_SUBREDDIT` | Top posts per subreddit |
-| `TIME_FILTER` | `"year"` | `TIME_FILTER` | Lookback window (`day`, `week`, `month`, `year`) |
+| `POSTS_PER_SUBREDDIT` | 100 | `POSTS_PER_SUBREDDIT` | Top posts per subreddit |
+| `TIME_FILTER` | `"week"` | `TIME_FILTER` | Lookback window (`day`, `week`, `month`, `year`) |
 | `TOP_COMMENTS` | 10 | — | Top-level comments included per thread |
 | `MAX_COMMENT_WORDS` | 150 | — | Words per comment sent to LLM |
 | `FILTER_BATCH_SIZE` | 20 | — | Posts per Haiku API call |
@@ -317,7 +317,7 @@ All tuneable settings are in `config.py`:
 `POSTS_PER_SUBREDDIT` and `TIME_FILTER` can be overridden at runtime without editing `config.py`:
 
 ```bash
-POSTS_PER_SUBREDDIT=100 TIME_FILTER=week python run.py
+POSTS_PER_SUBREDDIT=500 TIME_FILTER=year python run.py
 ```
 
 ### Clustering
