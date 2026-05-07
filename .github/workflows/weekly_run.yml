@@ -26,8 +26,6 @@ jobs:
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          POSTS_PER_SUBREDDIT: 100
-          TIME_FILTER: week
         run: python -u run.py
 
       - name: Commit updated data and dashboard
