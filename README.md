@@ -56,6 +56,129 @@ ChromaDB               — upsert embeddings + metadata to persistent vector sto
 Report                 — insights_{date}.json + report_{date}.md
 ```
 
+### Data shape at each step
+
+The same post traced through the full pipeline:
+
+**Step 1 — Scrape** (`data/raw/{date}/{subreddit}.jsonl`, one JSON object per line)
+```json
+{
+  "post_id": "1ktz4m2",
+  "source": "reddit",
+  "community": "Psychiatry",
+  "title": "Prior auth denials for clozapine — anyone else seeing this spike?",
+  "body": "Third denial this month for a treatment-resistant schizophrenia patient. Insurance wants 'documented failure' of two other antipsychotics even though the patient had agranulocytosis on one of them. The appeals process takes 3-4 weeks minimum. Meanwhile the patient is destabilizing.",
+  "author_hash": "a3f9c21b04e7",
+  "author_flair": "Psychiatrist (Verified)",
+  "timestamp": "2025-11-14T18:32:00Z",
+  "score": 847,
+  "comment_count": 134,
+  "url": "https://www.reddit.com/r/Psychiatry/comments/1ktz4m2/...",
+  "flair": "Pharmacology",
+  "top_comments": [
+    { "body": "Same here. We've started keeping a template appeal letter...", "score": 312 },
+    { "body": "The agranulocytosis argument should be an automatic override...", "score": 287 }
+  ]
+}
+```
+
+**Step 2 — Harmonize** (Python `UnifiedPost` dataclass — same fields, guaranteed schema)
+```
+UnifiedPost(
+  post_id      = "1ktz4m2",
+  source       = "reddit",
+  community    = "Psychiatry",
+  title        = "Prior auth denials for clozapine — anyone else seeing this spike?",
+  body         = "Third denial this month...",
+  author_hash  = "a3f9c21b04e7",
+  timestamp    = "2025-11-14T18:32:00Z",
+  score        = 847,
+  comment_count = 134,
+  url          = "https://www.reddit.com/r/Psychiatry/comments/1ktz4m2/...",
+  flair        = "Pharmacology",
+  top_comments = [{"body": "Same here...", "score": 312}, ...]
+)
+```
+
+**Step 3 — Rule-based pre-filter** (pass/drop, no transformation)
+```
+✓ PASS  score=847 ≥ floor, body length ok, flair not blocklisted
+```
+
+**Step 4 — Haiku LLM filter** (pass/drop, no transformation)
+```
+✓ PASS  label=relevant  "Clinical decision-making blocked by prior auth for
+        evidence-based medication with documented safety history"
+```
+
+**Step 5 — Synthesize** (`data/synthesis/{date}.jsonl`)
+```json
+{
+  "post_id": "1ktz4m2",
+  "community": "Psychiatry",
+  "url": "https://www.reddit.com/r/Psychiatry/comments/1ktz4m2/...",
+  "comment_count": 134,
+  "timestamp": "2025-11-14T18:32:00Z",
+  "headline": "Prior authorization barriers are delaying clozapine access for treatment-resistant schizophrenia patients despite documented contraindications to alternatives.",
+  "clinical_problem": "Insurers are requiring documented failure of two antipsychotics before approving clozapine, even when patients have a history of agranulocytosis that makes those alternatives contraindicated. Appeals take 3-4 weeks, leaving unstable patients without treatment.",
+  "key_findings": [
+    "Step-therapy requirements are being applied rigidly without accounting for documented adverse drug history",
+    "Psychiatrists report a recent spike in denials specifically for clozapine",
+    "The appeals process timeline (3-4 weeks) causes meaningful clinical harm for psychotic patients",
+    "Physicians are developing informal workarounds (template appeal letters) rather than a systemic fix"
+  ],
+  "unmet_need": "Automated prior auth override pathway when contraindication to required step-therapy drugs is documented in the medical record.",
+  "specialty_tags": ["psychiatry", "pharmacology"],
+  "sentiment": "frustrated",
+  "embedding": []
+}
+```
+
+**Step 6 — Embed** (512-dim Voyage vector added to the summary object)
+```json
+{
+  "post_id": "1ktz4m2",
+  "headline": "Prior authorization barriers are delaying clozapine access...",
+  "embedding": [0.0412, -0.0837, 0.1204, -0.0531, 0.0093, "...509 more floats..."]
+}
+```
+
+**Step 7 — ChromaDB** (what gets stored in the vector index)
+```json
+{
+  "id": "1ktz4m2",
+  "document": "Prior authorization barriers are delaying clozapine access for treatment-resistant schizophrenia patients. Insurers are requiring documented failure of two antipsychotics... Automated prior auth override pathway when contraindication is documented.",
+  "embedding": [0.0412, -0.0837, ...],
+  "metadata": {
+    "community":      "Psychiatry",
+    "sentiment":      "frustrated",
+    "specialty_tags": "psychiatry, pharmacology",
+    "comment_count":  134,
+    "timestamp":      "2025-11-14T18:32:00Z",
+    "url":            "https://www.reddit.com/r/Psychiatry/comments/1ktz4m2/...",
+    "headline":       "Prior authorization barriers are delaying clozapine access...",
+    "unmet_need":     "Automated prior auth override pathway when contraindication is documented."
+  }
+}
+```
+
+**Step 8 — Report** (`data/output/insights_{date}.json`, one entry per summary)
+```json
+{
+  "post_id": "1ktz4m2",
+  "community": "Psychiatry",
+  "headline": "Prior authorization barriers are delaying clozapine access for treatment-resistant schizophrenia patients.",
+  "clinical_problem": "Insurers are requiring documented failure of two antipsychotics...",
+  "key_findings": ["Step-therapy requirements applied rigidly...", "..."],
+  "unmet_need": "Automated prior auth override pathway when contraindication is documented.",
+  "specialty_tags": ["psychiatry", "pharmacology"],
+  "sentiment": "frustrated",
+  "comment_count": 134,
+  "timestamp": "2025-11-14T18:32:00Z",
+  "url": "https://www.reddit.com/r/Psychiatry/comments/1ktz4m2/..."
+}
+```
+
 ## Setup
 
 **1. Clone the repo**
