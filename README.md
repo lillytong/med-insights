@@ -1,5 +1,3 @@
-The diff adds a new Slack notification feature with a new dependency and a new configuration variable. This is a meaningful behavioral addition that users need to know about (new `SLACK_WEBHOOK_URL` env var, new optional notification step). The README needs updating in the Setup/credentials table and Usage sections.
-
 ```markdown
 # med-insights
 
@@ -24,6 +22,8 @@ Medical professionals congregate in online communities to discuss cases, share f
 - Synthesized summaries of key themes across communities
 - Ranked topics by frequency and engagement
 - Insights segmented by specialty or community
+- Interactive dashboard with cluster map and sentiment breakdown
+- Optional Slack digest with top cluster themes
 
 ## Architecture
 
@@ -47,6 +47,15 @@ bge-small embedder     — embed each summary locally (bge-small-en-v1.5, 384 di
     │
     ▼
 ChromaDB               — upsert embeddings + metadata to persistent vector store
+    │
+    ▼
+UMAP + HDBSCAN         — reduce to 2D, discover natural clusters
+    │
+    ▼
+Sonnet cluster labeler — 3-5 word theme label per cluster
+    │
+    ▼
+Dashboard              — dashboard/index.html (self-contained, no server required)
     │
     ▼
 Report                 — insights_{date}.json + report_{date}.md
@@ -161,7 +170,23 @@ UnifiedPost(
 }
 ```
 
-**Step 8 — Report** (`data/output/{date}/insights_{date}.json`, one entry per summary)
+**Step 8 — Cluster** (UMAP + HDBSCAN → Sonnet labels; `cluster_id`, `umap_x`, `umap_y` written back to ChromaDB metadata)
+```
+  [clusterer] 14 clusters found, 37 noise points
+  [clusterer] labeling cluster 0 (89 posts)... "Prior auth blocking biologics"
+  [clusterer] labeling cluster 1 (74 posts)... "Burnout and staffing shortages"
+  ...
+```
+
+**Step 9 — Dashboard** (`dashboard/index.html` — self-contained, no server required)
+
+A single HTML file with embedded D3 visualizations:
+- Bubble chart: one bubble per cluster, sized by post count, colored by dominant sentiment
+- Specialty breakdown bar chart
+- Sentiment distribution
+- Click-to-explore cluster detail panel
+
+**Step 10 — Report** (`data/output/{date}/insights_{date}.json`, one entry per summary)
 ```json
 {
   "post_id": "1ktz4m2",
@@ -189,6 +214,11 @@ cd med-insights
 **2. Install dependencies**
 ```bash
 pip install -r requirements.txt
+```
+
+Clustering requires two additional packages:
+```bash
+pip install hdbscan umap-learn
 ```
 
 **3. Configure credentials**
@@ -236,6 +266,15 @@ The pipeline will print progress at each stage:
 [7/7] Upserting to ChromaDB...
   934 records upserted
 
+Clustering embeddings...
+  [clusterer] fetching 934 records from ChromaDB...
+  [clusterer] UMAP: 384 → 2D...
+  [clusterer] HDBSCAN (min_cluster_size=5)...
+  [clusterer] 14 clusters found, 37 noise points
+  [clusterer] labeling cluster 0 (89 posts)...
+  ...
+  Dashboard: dashboard/index.html
+
   [slack] notification sent to #med-insights
 
 Done.
@@ -243,9 +282,9 @@ Done.
   Markdown: data/output/2026-05-07/report_2026-05-07.md
 ```
 
-Output files are written to `data/output/{date}/`. The Markdown report is the easiest to read.
+Output files are written to `data/output/{date}/`. The Markdown report is the easiest to read. The dashboard is written to `dashboard/index.html` — open it directly in a browser, no server required.
 
-If `SLACK_WEBHOOK_URL` is set, a digest is posted to #med-insights after each run containing run stats, specialty breakdown, sentiment distribution, top unmet needs, and highlighted threads. If the variable is unset, the notification is skipped silently.
+If `SLACK_WEBHOOK_URL` is set, a digest is posted to #med-insights after each run containing run stats, specialty breakdown, sentiment distribution, top unmet needs, top cluster themes, and highlighted threads. If the variable is unset, the notification is skipped silently.
 
 ## Configuration
 
@@ -263,6 +302,16 @@ All tuneable settings are in `config.py`:
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Local model, no API key, 384 dims |
 | `EMBEDDING_BATCH_SIZE` | 64 | Summaries per encode batch |
 
+### Clustering
+
+Clustering is controlled by a single parameter passed to `pipeline/clusterer.py`:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `min_cluster_size` | `5` | Minimum posts to form a cluster (HDBSCAN). Lower = more, smaller clusters. Raise for fewer, broader themes. |
+
+Posts that don't belong to any cluster are labeled noise and excluded from the dashboard bubble chart and Slack theme summary.
+
 ## Reruns & resumability
 
 The pipeline has three layers of caching to avoid redundant work:
@@ -274,4 +323,6 @@ The pipeline has three layers of caching to avoid redundant work:
 | Processed ID cache | `data/processed_ids.json` | Posts successfully synthesized in prior runs |
 
 If the pipeline is interrupted mid-synthesis (crash, rate limit, Ctrl+C), rerunning on the same day will skip already-completed summaries and pick up from where it left off.
+
+The clustering and dashboard steps always run fresh on each pipeline execution, reflecting the current full state of ChromaDB.
 ```
