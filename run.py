@@ -25,6 +25,7 @@ from pipeline.synthesizer import synthesize_all
 from pipeline.embedder import embed_summaries
 from store.chroma import upsert_summaries
 from output.report import save_json, save_markdown
+from output.slack import notify
 
 
 def _load_cache() -> set[str]:
@@ -126,6 +127,9 @@ def main():
 
     # Cache processed IDs so reruns skip them
     _save_cache(processed_ids | {s.post_id for s in summaries})
+
+    # Notify Slack
+    notify(summaries, stats)
 
     print("Done.")
     print(f"  JSON:     {json_path}")
