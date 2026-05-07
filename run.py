@@ -5,7 +5,7 @@ Usage:
     python run.py
 
 Flow:
-    Scrape → Harmonize → Pre-filter → Haiku filter → Synthesize → Report
+    Scrape → Harmonize → Pre-filter → Haiku filter → Synthesize → Embed → Report
 """
 
 import asyncio
@@ -22,6 +22,8 @@ from pipeline.harmonizer import harmonize
 from pipeline.prefilter import prefilter
 from pipeline.filter import llm_filter
 from pipeline.synthesizer import synthesize_all
+from pipeline.embedder import embed_summaries
+from store.chroma import upsert_summaries
 from output.report import save_json, save_markdown
 
 
@@ -79,16 +81,26 @@ def main():
         return
 
     # 5. Synthesize
-    print(f"[5/5] Synthesizing {len(posts)} threads (Sonnet)...")
+    print(f"[5/6] Synthesizing {len(posts)} threads (Sonnet)...")
     summaries = asyncio.run(synthesize_all(posts))
     print(f"  {len(summaries)} summaries generated\n")
+
+    # 6. Embed
+    print(f"[6/7] Embedding {len(summaries)} summaries (Voyage)...")
+    summaries = embed_summaries(summaries)
+    print(f"  Done — {len(summaries[0].embedding)} dims per summary\n")
+
+    # 7. Store in vector DB
+    print(f"[7/7] Upserting to ChromaDB...")
+    n_upserted = upsert_summaries(summaries)
+    print(f"  {n_upserted} records upserted\n")
 
     # Save outputs
     json_path = save_json(summaries, config.OUTPUT_DIR)
     md_path = save_markdown(summaries, config.OUTPUT_DIR, stats)
 
     # Cache processed IDs so reruns skip them
-    _save_cache(processed_ids | {p.post_id for p in posts})
+    _save_cache(processed_ids | {s.post_id for s in summaries})
 
     print("Done.")
     print(f"  JSON:     {json_path}")

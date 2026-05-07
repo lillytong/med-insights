@@ -2,8 +2,7 @@
 Rule-based pre-filter. Zero API cost — runs entirely in Python.
 Eliminates obvious noise before any LLM call.
 
-Gates: deleted → link-only → engagement → keyword → length.
-Note: flair filtering removed — not provided by the Apify actor.
+Gates: deleted → link-only → flair → keyword → length.
 """
 
 import re
@@ -44,9 +43,9 @@ def _check(post: UnifiedPost) -> tuple[bool, str]:
     if _is_link_only(post.body):
         return False, "link-only post (no substantive body text)"
 
-    # 3. Engagement floor
-    if post.score < config.MIN_SCORE and post.comment_count < config.MIN_COMMENTS:
-        return False, f"low engagement (score={post.score}, comments={post.comment_count})"
+    # 3. Flair blocklist
+    if post.flair.lower() == "humor":
+        return False, f"blocked flair: {post.flair!r}"
 
     # 4. Title keyword blocklist
     title_lower = post.title.lower()
@@ -55,11 +54,9 @@ def _check(post: UnifiedPost) -> tuple[bool, str]:
             return False, f"blocked keyword in title: {kw!r}"
 
     # 5. Body too short to contain a real clinical problem.
-    # High-engagement posts skip this gate — community already validated them.
     body_words = len(post.body.split())
     title_words = len(post.title.split())
-    high_engagement = post.score >= 50 or post.comment_count >= 20
-    if not high_engagement and body_words < config.MIN_BODY_WORDS and title_words < 8:
+    if body_words < config.MIN_BODY_WORDS and title_words < 8:
         return False, f"too short (body={body_words} words, title={title_words} words)"
 
     return True, "passed"

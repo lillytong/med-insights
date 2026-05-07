@@ -19,12 +19,12 @@ def save_markdown(summaries: list[ThreadSummary], output_dir: str, stats: dict) 
     date_str = datetime.now().strftime("%Y-%m-%d")
     path = f"{output_dir}/report_{date_str}.md"
 
-    # Group by community, sort each group by score desc
+    # Group by community, sort each group by comment_count desc
     by_community: dict[str, list[ThreadSummary]] = {}
     for s in summaries:
         by_community.setdefault(s.community, []).append(s)
     for threads in by_community.values():
-        threads.sort(key=lambda x: x.score, reverse=True)
+        threads.sort(key=lambda x: x.comment_count, reverse=True)
 
     lines = [
         f"# Medical Insights Report — {date_str}",
@@ -44,7 +44,7 @@ def save_markdown(summaries: list[ThreadSummary], output_dir: str, stats: dict) 
         for t in threads:
             lines += [
                 f"### {t.headline}",
-                f"*{t.sentiment} · score {t.score} · {t.comment_count} comments · [view thread]({t.url})*",
+                f"*{t.sentiment} · {t.comment_count} comments · [view thread]({t.url})*",
                 "",
                 f"**Problem:** {t.clinical_problem}",
                 "",
