@@ -113,24 +113,26 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
           background: #f8fafc; color: #1e293b; min-height: 100vh; }}
-  header {{ padding: 24px 32px; border-bottom: 1px solid #e2e8f0; background: #fff;
-            display: flex; align-items: center; justify-content: space-between; }}
-  header h1 {{ font-size: 1.4rem; font-weight: 600; color: #0f172a; }}
-  header .meta {{ font-size: 0.85rem; color: #94a3b8; }}
-  .stats-bar {{ display: flex; gap: 32px; padding: 20px 32px;
-                border-bottom: 1px solid #e2e8f0; background: #fff; }}
-  .stat {{ display: flex; flex-direction: column; gap: 2px; }}
-  .stat .value {{ font-size: 1.6rem; font-weight: 700; color: #0284c7; }}
-  .stat .label {{ font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;
+  header {{ padding: 12px 32px; border-bottom: 1px solid #e2e8f0; background: #fff;
+            display: flex; align-items: center; gap: 28px; }}
+  header h1 {{ font-size: 1.1rem; font-weight: 700; color: #0f172a; flex-shrink: 0; }}
+  .header-stats {{ display: flex; gap: 20px; flex: 1; }}
+  .stat {{ display: flex; align-items: baseline; gap: 5px; }}
+  .stat .value {{ font-size: 1.05rem; font-weight: 700; color: #0284c7; }}
+  .stat .label {{ font-size: 0.7rem; color: #94a3b8; text-transform: uppercase;
                   letter-spacing: 0.05em; }}
+  header .meta {{ font-size: 0.75rem; color: #94a3b8; flex-shrink: 0; }}
   .main {{ display: grid; grid-template-columns: 1fr 340px;
-           gap: 0; height: calc(100vh - 120px); }}
-  .chart-area {{ padding: 24px 32px; overflow: hidden; background: #f8fafc; }}
+           gap: 0; height: calc(100vh - 53px); }}
+  .chart-area {{ padding: 20px 32px; overflow: hidden; background: #f8fafc; }}
   .chart-area h2 {{ font-size: 0.9rem; color: #94a3b8; text-transform: uppercase;
                     letter-spacing: 0.08em; margin-bottom: 16px; }}
-  #bubble-chart {{ width: 100%; height: calc(100% - 40px); }}
-  .sidebar {{ border-left: 1px solid #e2e8f0; padding: 24px 20px; background: #fff;
-              overflow-y: auto; display: flex; flex-direction: column; gap: 28px; }}
+  #bubble-chart {{ width: 100%; height: calc(100% - 36px); }}
+  .sidebar {{ border-left: 1px solid #e2e8f0; background: #fff;
+              display: flex; flex-direction: column; overflow: hidden; }}
+  .sidebar-pane {{ flex: 1; min-height: 0; overflow-y: auto;
+                   padding: 16px 20px; display: flex; flex-direction: column; gap: 20px; }}
+  .sidebar-pane + .sidebar-pane {{ border-top: 2px solid #e2e8f0; }}
   .panel h2 {{ font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;
                letter-spacing: 0.08em; margin-bottom: 14px; }}
   .bar-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -183,10 +185,9 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
 
 <header>
   <h1>🏥 med-insights</h1>
-  <div class="meta">Last updated {date_str} · {total_posts} posts · {n_clusters} clusters</div>
+  <div class="header-stats" id="stats-bar"></div>
+  <div class="meta">Updated {date_str}</div>
 </header>
-
-<div class="stats-bar" id="stats-bar"></div>
 
 <div class="main">
   <div class="chart-area">
@@ -195,17 +196,21 @@ def generate(clusters: list[ClusterResult], output_path: str = "dashboard/index.
   </div>
 
   <div class="sidebar">
-    <div class="panel">
-      <h2>Cluster detail</h2>
-      <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
+    <div class="sidebar-pane">
+      <div class="panel">
+        <h2>Cluster detail</h2>
+        <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
+      </div>
     </div>
-    <div class="panel">
-      <h2>Specialty breakdown</h2>
-      <div id="specialty-bars"></div>
-    </div>
-    <div class="panel">
-      <h2>Sentiment distribution</h2>
-      <div id="sentiment-rows"></div>
+    <div class="sidebar-pane">
+      <div class="panel">
+        <h2>Specialty breakdown</h2>
+        <div id="specialty-bars"></div>
+      </div>
+      <div class="panel">
+        <h2>Sentiment distribution</h2>
+        <div id="sentiment-rows"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -222,10 +227,10 @@ const totalPosts   = CLUSTERS.reduce((s, c) => s + c.post_count, 0);
 const nClusters    = CLUSTERS.length;
 const topCluster   = CLUSTERS.slice().sort((a,b) => b.post_count - a.post_count)[0];
 document.getElementById("stats-bar").innerHTML = `
-  <div class="stat"><div class="value">${{totalPosts}}</div><div class="label">Posts indexed</div></div>
-  <div class="stat"><div class="value">${{nClusters}}</div><div class="label">Clusters found</div></div>
-  <div class="stat"><div class="value">${{topCluster ? topCluster.post_count : 0}}</div><div class="label">Largest cluster</div></div>
-  <div class="stat"><div class="value">${{SPECIALTY.length}}</div><div class="label">Specialties</div></div>
+  <div class="stat"><div class="value">${{totalPosts}}</div><div class="label">posts</div></div>
+  <div class="stat"><div class="value">${{nClusters}}</div><div class="label">clusters</div></div>
+  <div class="stat"><div class="value">${{topCluster ? topCluster.post_count : 0}}</div><div class="label">largest</div></div>
+  <div class="stat"><div class="value">${{SPECIALTY.length}}</div><div class="label">specialties</div></div>
 `;
 
 // --- Specialty bars ---
