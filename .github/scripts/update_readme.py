@@ -4,6 +4,9 @@ import anthropic
 
 README_PATH = "README.md"
 
+# Strip whitespace/newlines from API key in case it was pasted with trailing characters
+os.environ["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+
 
 def get_diff():
     result = subprocess.run(
