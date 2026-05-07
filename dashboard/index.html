@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>med-insights dashboard — 2026-05-07</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: #f8fafc; color: #1e293b; min-height: 100vh; }
+  header { padding: 24px 32px; border-bottom: 1px solid #e2e8f0; background: #fff;
+            display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1.4rem; font-weight: 600; color: #0f172a; }
+  header .meta { font-size: 0.85rem; color: #94a3b8; }
+  .stats-bar { display: flex; gap: 32px; padding: 20px 32px;
+                border-bottom: 1px solid #e2e8f0; background: #fff; }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat .value { font-size: 1.6rem; font-weight: 700; color: #0284c7; }
+  .stat .label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;
+                  letter-spacing: 0.05em; }
+  .main { display: grid; grid-template-columns: 1fr 340px;
+           gap: 0; height: calc(100vh - 120px); }
+  .chart-area { padding: 24px 32px; overflow: hidden; background: #f8fafc; }
+  .chart-area h2 { font-size: 0.9rem; color: #94a3b8; text-transform: uppercase;
+                    letter-spacing: 0.08em; margin-bottom: 16px; }
+  #bubble-chart { width: 100%; height: calc(100% - 40px); }
+  .sidebar { border-left: 1px solid #e2e8f0; padding: 24px 20px; background: #fff;
+              overflow-y: auto; display: flex; flex-direction: column; gap: 28px; }
+  .panel h2 { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;
+               letter-spacing: 0.08em; margin-bottom: 14px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+              font-size: 0.8rem; }
+  .bar-row .name { width: 110px; flex-shrink: 0; color: #334155; overflow: hidden;
+                    text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: #e2e8f0; border-radius: 3px; height: 8px; }
+  .bar-fill { height: 8px; border-radius: 3px; background: #0284c7; }
+  .bar-count { color: #94a3b8; font-size: 0.75rem; width: 28px; text-align: right; }
+  .sentiment-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+                    font-size: 0.8rem; }
+  .senti-pill { padding: 2px 8px; border-radius: 99px; font-size: 0.72rem;
+                 font-weight: 500; }
+  .senti-pct { margin-left: auto; color: #94a3b8; }
+  #detail-panel { background: #f1f5f9; border-radius: 8px; padding: 16px;
+                   font-size: 0.82rem; min-height: 120px; }
+  #detail-panel .detail-title { font-size: 0.95rem; font-weight: 600;
+                                  color: #0f172a; margin-bottom: 10px; }
+  #detail-panel .detail-label { color: #94a3b8; font-size: 0.72rem;
+                                  text-transform: uppercase; letter-spacing: 0.05em;
+                                  margin-top: 10px; margin-bottom: 4px; }
+  #detail-panel .detail-tag { display: inline-block; background: #e2e8f0;
+                                border-radius: 4px; padding: 2px 6px; margin: 2px;
+                                font-size: 0.72rem; color: #475569; }
+  #detail-panel ul { padding-left: 14px; color: #334155; }
+  #detail-panel li { margin-bottom: 4px; }
+  .tooltip { position: fixed; background: #fff; border: 1px solid #e2e8f0;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+              padding: 10px 14px; border-radius: 6px; font-size: 0.8rem;
+              pointer-events: none; opacity: 0; transition: opacity 0.15s;
+              max-width: 240px; color: #1e293b; z-index: 100; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏥 med-insights</h1>
+  <div class="meta">Last updated 2026-05-07 · 1028 posts · 25 clusters</div>
+</header>
+
+<div class="stats-bar" id="stats-bar"></div>
+
+<div class="main">
+  <div class="chart-area">
+    <h2>Cluster map — bubble size = post count, color = dominant sentiment</h2>
+    <svg id="bubble-chart"></svg>
+  </div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <h2>Specialty breakdown</h2>
+      <div id="specialty-bars"></div>
+    </div>
+    <div class="panel">
+      <h2>Sentiment distribution</h2>
+      <div id="sentiment-rows"></div>
+    </div>
+    <div class="panel">
+      <h2>Cluster detail</h2>
+      <div id="detail-panel"><span style="color:#94a3b8">Click a bubble to explore</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const CLUSTERS   = [
+  {
+    "id": 0,
+    "label": "Psychiatric diagnostic and management uncertainty",
+    "post_count": 262,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Oncology",
+      "Psychiatry",
+      "Rheumatology"
+    ],
+    "top_unmet_needs": [
+      "Clearer specialty-specific guidelines or alternative care models that balance visit frequency, duration, and quality outcomes for psychiatric follow-up patients.",
+      "A rapid, clinically accessible critical appraisal of the gabapentin-dementia study \u2014 including evaluation of confounding, study design limitations, and actionable prescribing guidance \u2014 that psychiatrists can use to confidently counsel patients.",
+      "A clearly defined, peer-validated post-residency curriculum or learning pathway for advanced personality disorder treatment \u2014 spanning evidence-based psychotherapies (e.g., DBT, MBT, TFP), psychodynamic theory, and practical clinical skills \u2014 that psychiatrists can follow without completing a full analytic training program."
+    ],
+    "x": 8.601857731360516,
+    "y": 3.119652253980855
+  },
+  {
+    "id": 1,
+    "label": "Incidental Ocular Findings Diagnostic Uncertainty",
+    "post_count": 182,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology",
+      "Ophthalmology"
+    ],
+    "top_unmet_needs": [
+      "Lack of clinical guidelines or evidence-based protocols for managing incidental congenital retinal vascular anomalies discovered during diabetic eye screening, particularly in pregnant patients where longitudinal vascular risk is compounded.",
+      "Clearer interdisciplinary guidelines for the role of ophthalmology in metastatic cancer cases where patients are already on palliative pathways; frameworks for communicating prognosis and managing choroidal metastases in end-of-life contexts.",
+      "Standardized ophthalmology-to-neurology referral pathways and clinical decision tools for when a retinal hamartoma finding should prompt systemic TSC workup, including genetic counseling and neuroimaging."
+    ],
+    "x": -0.022396539518312848,
+    "y": 5.215074494644836
+  },
+  {
+    "id": 2,
+    "label": "Seronegative Autoimmune Diagnostic Uncertainty",
+    "post_count": 83,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Gastroenterology",
+      "Oncology",
+      "Rheumatology",
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Clear clinical guidelines or decision-support tools for managing refractory ulcerative proctitis that has failed both 5-ASA agents and JAK inhibitors, including stepwise escalation pathways (e.g., biologics, local therapies, combination approaches) and patient communication resources to address alternative medicine inquiries.",
+      "A standardized, case-based reference or decision-support tool that clarifies ASA classification for patients with resolved or remote medical histories, particularly neurological conditions, to reduce inter-provider variability and improve cross-specialty understanding.",
+      "A validated clinical screening checklist or decision-support tool for large-vessel vasculitis (particularly TA) targeting high-risk demographic profiles in primary care and general internal medicine settings \u2014 prompting timely vascular imaging (MRA/CTA/PET-CT) before years of diagnostic delay accumulate."
+    ],
+    "x": 2.707831905548831,
+    "y": 6.438677873956152
+  },
+  {
+    "id": 3,
+    "label": "Nephrology training and practice gaps",
+    "post_count": 21,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "nephrology"
+    ],
+    "top_unmet_needs": [
+      "A clear, standardized outline of procedural competencies expected of nephrologists, ideally stratified by practice setting (academic vs. community) and region, to guide training and cross-specialty collaboration.",
+      "A structured curriculum or mentorship framework within nephrology fellowships that exposes trainees to outpatient HD unit operations, practice economics, and the logistical realities of blended nephrology practice models.",
+      "Structured mental health and resilience support resources within nephrology (and broader fellowship) training programs to address imposter syndrome \u2014 particularly formalized mentorship or psychological coaching tools that help trainees reconcile objective performance data with self-perception."
+    ],
+    "x": 1.8088181813557942,
+    "y": 3.334848937534151
+  },
+  {
+    "id": 4,
+    "label": "Sodium Regulation and Hypertension Management",
+    "post_count": 6,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology",
+      "nephrology"
+    ],
+    "top_unmet_needs": [
+      "A clinician-facing, evidence-based framework that translates renal sodium physiology (RAAS adaptation, aldosterone dynamics, hyponatremia thresholds) into practical dietary sodium guidance across different patient populations (healthy adults, CKD, heart failure, elderly).",
+      "A validated, medical-grade digital lifestyle coaching tool for hypertensive patients that integrates multiple non-pharmacological intervention domains and is suitable for clinical recommendation by physicians.",
+      "A clear, mechanistic explanation \u2014 ideally visual or model-based (e.g., Guyton's pressure-natriuresis framework) \u2014 of how chronic salt intake shifts the renal set point for sodium balance, and why this results in a persistently elevated EBV rather than a return to euvolemia. Current AI and search tools are insufficient for this level of physiological nuance."
+    ],
+    "x": 2.3624194065729776,
+    "y": 3.232109308242798
+  },
+  {
+    "id": 5,
+    "label": "Unmet GI diagnostic and management guidance",
+    "post_count": 47,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Gastroenterology",
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "A clear, accessible, and clinically accurate educational resource (video, article, or interactive tool) explaining integrated GI motility mechanics \u2014 including LES sphincter dynamics, gastric rolling motility, and positional effects on digestion \u2014 aimed at both patients and learners.",
+      "Standardized post-colonoscopy follow-up protocols to screen for new or worsening GI motility symptoms, as well as clearer clinical guidance on evaluating patients who report symptom onset temporally linked to bowel prep procedures. Tools for earlier identification of pan-enteric dysmotility disorders in outpatient GI settings are also lacking.",
+      "Standardized, evidence-based long-term follow-up guidelines for adult esophageal atresia survivors, along with provider education on recognizing and managing chronic sequelae in this population. Clear care transition protocols from pediatric to adult gastroenterology are also lacking."
+    ],
+    "x": 4.497263421403601,
+    "y": 5.066103123603983
+  },
+  {
+    "id": 6,
+    "label": "Arterial and Vascular Access Challenges",
+    "post_count": 16,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology",
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Clear evidence-based guidelines or comparative outcome data on standard vs. specialized arterial line cannulas to inform institutional device standardization and procurement decisions.",
+      "Practical, step-by-step guidance for troubleshooting radial artery wire advancement failure without ultrasound \u2014 including tips on needle angulation, use of hydrophilic wires, spasmolytic cocktails, and anatomical variant recognition. Access to ultrasound equipment in the cath lab is also an unmet resource need.",
+      "A validated, evidence-based pre-procedural screening protocol for radial arterial line placement that reliably identifies patients at risk for ischemic complications, along with clearer medicolegal guidance on the standard of care."
+    ],
+    "x": 1.4796711653470993,
+    "y": 0.3773769252002239
+  },
+  {
+    "id": 7,
+    "label": "Kidney Disease Diagnostic Uncertainty",
+    "post_count": 5,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "nephrology"
+    ],
+    "top_unmet_needs": [
+      "Clear, evidence-based guidelines on safe renal biopsy timing and anticoagulation bridging/hold protocols in the context of acute DVT and DOACs; also a need for better ER-to-nephrology escalation pathways for suspected RPGN.",
+      "Clear evidence-based guidelines for safe discontinuation of complement inhibitors (Eculizumab/Ravulizumab) in transplant patients with genetically unconfirmed aHUS, particularly when an alternative post-transplant diagnosis has been established by biopsy.",
+      "Long-term safety and efficacy data for porcine kidney xenotransplantation in living humans; standardized protocols for immunosuppression, rejection monitoring, and patient selection criteria in xenotransplant candidates."
+    ],
+    "x": 2.5336907386779783,
+    "y": 5.1615372657775875
+  },
+  {
+    "id": 8,
+    "label": "Cardiology training competency gaps",
+    "post_count": 18,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology",
+      "Psychiatry"
+    ],
+    "top_unmet_needs": [
+      "Structured benchmarks or progression milestones for echo reading speed and stamina during fellowship training; guidance on sustainable workflows for high-volume echo labs.",
+      "A practical, accessible clinical framework or educational resource that helps non-physician staff (nurses, APRNs) understand the Heart Team decision-making process for PCI vs. CABG, including key factors like SYNTAX score, lesion complexity, and guideline-directed thresholds \u2014 without requiring them to navigate dense cardiology literature.",
+      "Clearer competency standards and liability guidance for non-imaging cardiologists who pursue cardiac CT reading privileges \u2014 including structured mentorship pathways beyond Level 2 certification that bridge the gap to independent practice confidence."
+    ],
+    "x": 0.6524324350886874,
+    "y": 2.040005882581075
+  },
+  {
+    "id": 9,
+    "label": "CYP2C19 acid suppression pharmacogenomics management",
+    "post_count": 13,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology",
+      "Gastroenterology",
+      "Oncology",
+      "Ophthalmology",
+      "Rheumatology",
+      "nephrology"
+    ],
+    "top_unmet_needs": [
+      "A clear, evidence-based consensus guideline reconciling drug interaction database alerts with real-world cardiovascular outcome data for the clopidogrel-PPI interaction, ideally with a standardized care transition protocol to guide pharmacist, PCP, and cardiologist decision-making.",
+      "A reliable, physician-accessible international formulary or verified cross-border medication sourcing guide for oncology drugs, including formulation-specific dosing guidance for Leuprolide depot presentations used in ADT. Additionally, a telemedicine or consultation pathway connecting non-oncologist physicians to oncology specialists for urgent, resource-limited case management.",
+      "Region-specific and nationally endorsed H. pylori treatment guidelines for India that reflect local resistance data, along with accessible susceptibility testing or validated alternative regimens (e.g., bismuth quadruple therapy, levofloxacin-based regimens) to replace empiric clarithromycin-based triple therapy."
+    ],
+    "x": 2.4934987471653867,
+    "y": 4.634997331179106
+  },
+  {
+    "id": 10,
+    "label": "Complex ECG Rhythm Interpretation Challenges",
+    "post_count": 15,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology"
+    ],
+    "top_unmet_needs": [
+      "A real-time or asynchronous EKG interpretation support tool or educational resource tailored for paramedics and pre-hospital providers encountering rare arrhythmias like WPW, ideally with specialist input and image-sharing capability.",
+      "A clear, accessible clinical algorithm or decision framework for differentiating complete AV block from atrial tachycardia with variable AV conduction on surface ECG, especially in patients with complex substrates like cardiac amyloidosis.",
+      "A clear, accessible clinical decision support tool or guideline for differentiating sinus tachycardia from atrial tachycardia on ECG \u2014 particularly in elderly patients with new-onset heart failure and no prior cardiac workup"
+    ],
+    "x": 0.44551862676938375,
+    "y": 1.1405592918395997
+  },
+  {
+    "id": 11,
+    "label": "Cath Lab Decision Making Uncertainty",
+    "post_count": 14,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Cardiology"
+    ],
+    "top_unmet_needs": [
+      "A validated clinical decision tool or updated guideline framework for stratifying cath lab activation in patients with significantly elevated hsTroponin in the context of concurrent trauma, head injury, or other non-ACS confounders.",
+      "A clear, evidence-based framework or career-long dosimetry tracking standard that helps trainees and early-career interventionalists make informed decisions about radiation risk, including quantified lifetime dose benchmarks and standardized protective protocols across institutions.",
+      "Clear clinical guidelines or decision-support tools for interpreting isolated hyperlactatemia in post-STEMI patients with preserved blood pressure but severely reduced cardiac function \u2014 including thresholds for escalating monitoring, repeating hemodynamic assessment (e.g., cardiac output measurement, ScvO2), or initiating MCS consideration."
+    ],
+    "x": 1.114509574004582,
+    "y": 1.506966471672058
+  },
+  {
+    "id": 12,
+    "label": "High Risk Anesthesia Monitoring Gaps",
+    "post_count": 17,
+    "dominant_sentiment": "debating",
+    "color": "#8b5cf6",
+    "communities": [
+      "Cardiology",
+      "Gastroenterology",
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Clear interdisciplinary guidelines or institutional protocols defining anesthesiologist authority over monitoring decisions independent of proceduralist preference, particularly for ASA Class V or equivalent high-risk patients undergoing non-cardiac procedures.",
+      "Clear evidence-based guidelines or institutional protocols governing the management of acute graft failure with ST-elevation in the immediate post-CABG period, including defined roles for interventional cardiology vs. cardiac surgery.",
+      "Standardized, evidence-based guidelines or validated same-day discharge criteria for Watchman procedures, including clear thresholds for post-procedural TTE timing and effusion risk stratification."
+    ],
+    "x": 1.937973562408896,
+    "y": 1.0516323973150814
+  },
+  {
+    "id": 13,
+    "label": "IMiD trial data integrity concerns",
+    "post_count": 9,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Oncology"
+    ],
+    "top_unmet_needs": [
+      "Clearer, evidence-based guidelines or consensus recommendations specifically addressing treatment intensity for THRLBCL, including prospective data on etoposide-containing regimens versus standard R-CHOP in this rare variant.",
+      "A centralized, accessible repository or review of Eastern clinical trial data on indirubin analogues translated and contextualized for Western oncology practice; clearer pathways for evaluating traditional Eastern cancer therapeutics within Western evidence-based frameworks.",
+      "Clear, evidence-based occupational safety guidelines tailored to cancer survivors working in hazardous drug handling environments, along with accessible occupational oncology consultation pathways."
+    ],
+    "x": 3.11360772450765,
+    "y": 4.5564141273498535
+  },
+  {
+    "id": 14,
+    "label": "Oncology care coordination and workflow gaps",
+    "post_count": 10,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "Oncology"
+    ],
+    "top_unmet_needs": [
+      "A clear care model and outcome data supporting the integration of oncology-specialized physical therapists into oncology clinic teams; greater awareness of and access to this subspecialty among oncology providers.",
+      "A standardized, accessible patient education tool or post-visit resource (e.g., plain-language treatment summaries, multimedia explainers, or patient-facing care plan apps) that reinforces what was discussed in clinic and reduces follow-up burden on care teams.",
+      "A streamlined, direct-pay teleconsultation or asynchronous radiology/oncology image review service that can interpret imaging for hospice or end-of-life patients outside of traditional referral and intake workflows."
+    ],
+    "x": 3.3429751634597777,
+    "y": 3.508280301094055
+  },
+  {
+    "id": 15,
+    "label": "AI oncology tools translational evidence gaps",
+    "post_count": 33,
+    "dominant_sentiment": "informational",
+    "color": "#10b981",
+    "communities": [
+      "Gastroenterology",
+      "Oncology"
+    ],
+    "top_unmet_needs": [
+      "No standardized framework exists for clinicians to evaluate, validate, or act upon AI-generated drug repurposing candidates that emerge from multi-database convergence pipelines \u2014 physicians lack clear criteria for when such signals warrant preclinical follow-up or trial design consideration.",
+      "A fast, GPU-accelerated, IBSI-compliant radiomics feature extraction tool that scales efficiently to large patient cohorts without sacrificing feature reproducibility or standardization.",
+      "A standardized framework or guideline for academic oncology researchers on how to structure CRO partnerships for translational biomarker studies, specifically addressing data ownership agreements, sample chain-of-custody, and best practices for selecting validated external labs."
+    ],
+    "x": 3.488236998066758,
+    "y": 4.174970995296132
+  },
+  {
+    "id": 16,
+    "label": "Informal Clinical Knowledge Gaps",
+    "post_count": 10,
+    "dominant_sentiment": "informational",
+    "color": "#10b981",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "A psychologically safe, anonymous, or low-stakes resource (beyond Google) where practicing anesthesiologists can revisit foundational and advanced concepts without fear of professional embarrassment \u2014 such as a curated Q&A knowledge base, peer-reviewed refresher modules, or anonymous expert consultation tools.",
+      "A curated, evidence-based reference or living guideline that formally identifies and replaces outdated anesthesiology dogmas with current best practices \u2014 something accessible enough to change both teaching culture and bedside behavior.",
+      "A structured, specialty-wide database or case registry of surgical airway events during elective cases \u2014 including decision timelines, equipment used, team dynamics, and clinical outcomes \u2014 to support experiential learning beyond simulation and textbook training."
+    ],
+    "x": 3.5549556732177736,
+    "y": 0.5637867897748947
+  },
+  {
+    "id": 17,
+    "label": "Surgical case refusal authority conflicts",
+    "post_count": 18,
+    "dominant_sentiment": "frustrated",
+    "color": "#ef4444",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Specialty-specific ethical guidelines and legal protections for anesthesiologists faced with court-ordered procedures on capacitated, non-consenting patients \u2014 including clear direction on conscientious objection rights and liability coverage.",
+      "A standardized, objective OR case urgency/emergency classification framework \u2014 agreed upon across specialties \u2014 to reduce conflicts over same-day scheduling and ensure appropriate triage of truly emergent versus urgent versus elective cases.",
+      "A formal, standardized group-level policy for case refusal and escalation that protects anesthesiologist clinical autonomy, ensures consistent risk thresholds, and prevents surgeon shopping for more permissive attendings."
+    ],
+    "x": 3.3486787478129068,
+    "y": -0.11798021675915354
+  },
+  {
+    "id": 18,
+    "label": "Volatile anesthetic dosing practice variation",
+    "post_count": 6,
+    "dominant_sentiment": "uncertain",
+    "color": "#f59e0b",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Standardized institutional or specialty-wide guidance on intraoperative MAC titration targets, including evidence-based thresholds that balance awareness prevention against risks of excessive volatile exposure (hemodynamic depression, prolonged emergence, increased costs, environmental impact).",
+      "No critical unmet clinical need identified; however, there is an implicit gap in structured, evidence-based guidance on when to preferentially use MAC vs. Miller blades across different patient anatomies and clinical scenarios.",
+      "A curated, peer-reviewed case repository or CME module covering extreme volatile anesthetic dosing scenarios, including clinical context, patient risk factors, and decision-making rationale."
+    ],
+    "x": 3.3400560220082602,
+    "y": 0.9299267530441284
+  },
+  {
+    "id": 19,
+    "label": "OR role boundary conflicts",
+    "post_count": 8,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Clear institutional protocols or guidelines defining appropriate LMA use criteria during off-hours and skeleton crew shifts, which align nursing staff expectations with anesthesiologist clinical decision-making standards.",
+      "Clearer institutional protocols and escalation pathways defining when a physically present anesthesiologist must immediately act in an obstetric emergency, regardless of concurrent case coverage or backup availability \u2014 particularly in facilities where anesthesiologists cover both OB and non-OB cases simultaneously.",
+      "Standardized international OR protocols clarifying role responsibilities for surgical light management, along with better education on sterile handle use and ergonomic lighting systems that reduce the need for intraoperative adjustments."
+    ],
+    "x": 2.8504792749881744,
+    "y": 0.06771057145670056
+  },
+  {
+    "id": 20,
+    "label": "Anesthesia airway management controversies",
+    "post_count": 24,
+    "dominant_sentiment": "frustrated",
+    "color": "#ef4444",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Clear, evidence-based guidelines or consensus recommendations on ventilation strategy during intraoperative cardiac arrest, specifically addressing whether mechanical ventilation is non-inferior to BMV in this setting.",
+      "Clear national guidelines or standardized credentialing requirements that define minimum anesthesia training thresholds for non-anesthesiologist providers performing office-based sedation/GA, along with better patient-facing informed consent resources about provider training differences.",
+      "A clear, evidence-based, and widely adopted failed airway algorithm specific to obstetric general anesthesia that addresses LMA use as a rescue device, including risk stratification and decision thresholds"
+    ],
+    "x": 2.7705168227354684,
+    "y": 0.6047575535873572
+  },
+  {
+    "id": 21,
+    "label": "Neuraxial anesthesia failure management",
+    "post_count": 24,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "A standardized, step-by-step troubleshooting protocol for non-functional epidural catheters in obstetric patients, as well as clearer mentorship or escalation pathways for early-career attendings managing high-stakes obstetric anesthesia situations on call.",
+      "Clear, standardized clinical guidelines for when to escalate analgesia or convert to GA during cesarean, along with frameworks that center patient-reported pain rather than defaulting to GA avoidance.",
+      "Clearer institutional protocols and training for managing inadequate regional blocks intraoperatively, as well as formal guidance on conflict resolution between anesthesia providers and surgeons when patient safety is at stake \u2014 especially for early-career CRNAs."
+    ],
+    "x": 2.302015205224355,
+    "y": -0.16842941966994354
+  },
+  {
+    "id": 22,
+    "label": "Regional anesthesia technique guideline gaps",
+    "post_count": 6,
+    "dominant_sentiment": "uncertain",
+    "color": "#f59e0b",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Evidence-based guidelines or expert consensus on performing peripheral nerve blocks (and regional anesthesia broadly) in patients with active superficial fungal skin infections, stratified by infection type, severity, and proximity to needle insertion site.",
+      "Standardized emergency TIPS anesthesia protocols and dedicated off-hours staffing models for hybrid IR/anesthesia teams managing acute variceal hemorrhage; clearer institutional guidelines for resource escalation (blood products, staffing) during overnight IR emergencies.",
+      "Clear evidence-based guidelines or expert consensus on the use of regional anesthesia in immunocompromised, coagulopathic, and actively septic patients \u2014 particularly in pediatric/adolescent oncology cases where standard contraindication thresholds may not apply straightforwardly."
+    ],
+    "x": 2.122907876968384,
+    "y": 0.32256777584552765
+  },
+  {
+    "id": 23,
+    "label": "RSI Protocol Standardization Gaps",
+    "post_count": 12,
+    "dominant_sentiment": "debating",
+    "color": "#8b5cf6",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "A clear, evidence-based rationale (or explicit exemption) for port-swabbing requirements in controlled anesthesia environments where aseptic syringe preparation is already standard practice; ideally supported by specialty-specific JCAHO guidance developed in collaboration with anesthesiology societies.",
+      "A clear, widely disseminated and consistently enforced RSI guideline that addresses cricoid pressure with up-to-date evidence, to help standardize practice and resolve bedside disagreements between clinicians.",
+      "A practical, evidence-based clinical decision aid or threshold-based guideline that defines succinylcholine contraindications quantitatively (e.g., TBSA burn percentage, days of immobility, severity of neurological deficit) to guide real-world RSI decision-making."
+    ],
+    "x": 2.5131573478380838,
+    "y": 1.2228693564732869
+  },
+  {
+    "id": 24,
+    "label": "Propofol Use Optimization Challenges",
+    "post_count": 7,
+    "dominant_sentiment": "seeking_advice",
+    "color": "#3b82f6",
+    "communities": [
+      "anesthesiology"
+    ],
+    "top_unmet_needs": [
+      "Access to larger-volume, rubber-stopper vials of propofol at higher concentration (2%) to make TIVA practical and reduce intraoperative workflow disruptions.",
+      "Clear, enforceable intraoperative MAP threshold guidelines and institutional mechanisms for junior clinicians to safely escalate concerns about a supervising consultant's hemodynamic management without professional repercussions.",
+      "A standardized, evidence-informed yet practically optimized sedation protocol for high-volume GI endoscopy suites, including clear guidance on drug selection, dosing strategy (bolus vs. infusion), appropriate adjunct use, and turnover workflow benchmarks."
+    ],
+    "x": 3.0754885332924977,
+    "y": 1.1471504143306188
+  }
+];
+const SPECIALTY  = [{"community": "anesthesiology", "count": 171}, {"community": "Cardiology", "count": 147}, {"community": "Oncology", "count": 144}, {"community": "Rheumatology", "count": 109}, {"community": "Psychiatry", "count": 96}, {"community": "Ophthalmology", "count": 93}, {"community": "Gastroenterology", "count": 66}, {"community": "nephrology", "count": 31}];
+const SENTIMENT  = [{"sentiment": "seeking_advice", "count": 740, "pct": 85, "color": "#3b82f6", "emoji": "\ud83d\ude4b"}, {"sentiment": "informational", "count": 43, "pct": 5, "color": "#10b981", "emoji": "\ud83d\udccb"}, {"sentiment": "frustrated", "count": 42, "pct": 5, "color": "#ef4444", "emoji": "\ud83d\ude24"}, {"sentiment": "debating", "count": 29, "pct": 3, "color": "#8b5cf6", "emoji": "\u2696\ufe0f"}, {"sentiment": "uncertain", "count": 12, "pct": 1, "color": "#f59e0b", "emoji": "\ud83e\udd14"}];
+
+// --- Stats bar ---
+const totalPosts   = CLUSTERS.reduce((s, c) => s + c.post_count, 0);
+const nClusters    = CLUSTERS.length;
+const topCluster   = CLUSTERS.slice().sort((a,b) => b.post_count - a.post_count)[0];
+document.getElementById("stats-bar").innerHTML = `
+  <div class="stat"><div class="value">${totalPosts}</div><div class="label">Posts indexed</div></div>
+  <div class="stat"><div class="value">${nClusters}</div><div class="label">Clusters found</div></div>
+  <div class="stat"><div class="value">${topCluster ? topCluster.post_count : 0}</div><div class="label">Largest cluster</div></div>
+  <div class="stat"><div class="value">${SPECIALTY.length}</div><div class="label">Specialties</div></div>
+`;
+
+// --- Specialty bars ---
+const maxSpec = SPECIALTY[0]?.count || 1;
+document.getElementById("specialty-bars").innerHTML = SPECIALTY.map(s => `
+  <div class="bar-row">
+    <div class="name" title="${s.community}">r/${s.community}</div>
+    <div class="bar-track"><div class="bar-fill" style="width:${Math.round(s.count/maxSpec*100)}%"></div></div>
+    <div class="bar-count">${s.count}</div>
+  </div>`).join("");
+
+// --- Sentiment rows ---
+document.getElementById("sentiment-rows").innerHTML = SENTIMENT.map(s => `
+  <div class="sentiment-row">
+    <span style="font-size:1rem">${s.emoji}</span>
+    <span class="senti-pill" style="background:${s.color}22;color:${s.color}">${s.sentiment}</span>
+    <div class="bar-track" style="flex:1"><div class="bar-fill" style="width:${s.pct}%;background:${s.color}"></div></div>
+    <span class="senti-pct">${s.pct}%</span>
+  </div>`).join("");
+
+// --- Bubble chart ---
+const svg = d3.select("#bubble-chart");
+const container = document.getElementById("bubble-chart").parentElement;
+
+function drawBubbles() {
+  svg.selectAll("*").remove();
+  const W = container.clientWidth - 64;
+  const H = container.clientHeight - 56;
+  svg.attr("viewBox", `0 0 ${W} ${H}`).attr("width", W).attr("height", H);
+
+  if (!CLUSTERS.length) return;
+
+  const xExt = d3.extent(CLUSTERS, d => d.x);
+  const yExt = d3.extent(CLUSTERS, d => d.y);
+  const pad = 60;
+  const xScale = d3.scaleLinear().domain(xExt).range([pad, W - pad]);
+  const yScale = d3.scaleLinear().domain(yExt).range([pad, H - pad]);
+  const rScale = d3.scaleSqrt()
+    .domain([0, d3.max(CLUSTERS, d => d.post_count)])
+    .range([10, Math.min(W, H) / 7]);
+
+  const tooltip = document.getElementById("tooltip");
+
+  const g = svg.append("g");
+  const nodes = g.selectAll("g.node")
+    .data(CLUSTERS)
+    .join("g")
+    .attr("class", "node")
+    .attr("transform", d => `translate(${xScale(d.x)},${yScale(d.y)})`)
+    .style("cursor", "pointer")
+    .on("mouseenter", (event, d) => {
+      tooltip.style.opacity = "1";
+      tooltip.innerHTML = `<strong>${d.label}</strong><br>${d.post_count} posts · ${d.dominant_sentiment}`;
+    })
+    .on("mousemove", (event) => {
+      tooltip.style.left = (event.clientX + 14) + "px";
+      tooltip.style.top  = (event.clientY - 10) + "px";
+    })
+    .on("mouseleave", () => { tooltip.style.opacity = "0"; })
+    .on("click", (event, d) => showDetail(d));
+
+  nodes.append("circle")
+    .attr("r", d => rScale(d.post_count))
+    .attr("fill", d => d.color + "33")
+    .attr("stroke", d => d.color)
+    .attr("stroke-width", 1.5);
+
+  // Only render text when the bubble is big enough to hold at least one word legibly.
+  // Smaller bubbles show nothing — hover tooltip has the full label.
+  nodes.each(function(d) {
+    const r = rScale(d.post_count);
+    const MIN_R_FOR_TEXT = 22;   // px — below this, text always bleeds out
+    if (r < MIN_R_FOR_TEXT) return;
+
+    const fontSize = Math.max(9, Math.min(11, r / 4));
+    const charW = fontSize * 0.52;   // approximate char width for this font size
+    const maxLineChars = Math.floor((r * 1.7) / charW);  // chord width ≈ 1.7r
+    const lineH = fontSize + 3;
+
+    // Word-wrap into lines that fit inside the chord
+    const words = d.label.split(" ");
+    const lines = [];
+    let cur = "";
+    words.forEach(w => {
+      const test = cur ? cur + " " + w : w;
+      if (test.length > maxLineChars && cur) { lines.push(cur); cur = w; }
+      else cur = test;
+    });
+    if (cur) lines.push(cur);
+
+    // Drop lines that would overflow vertically (keep only lines that fit in r*1.5 height)
+    const maxLines = Math.floor((r * 1.4) / lineH);
+    const visibleLines = lines.slice(0, maxLines);
+
+    const textEl = d3.select(this).append("text")
+      .attr("text-anchor", "middle")
+      .attr("font-size", fontSize)
+      .attr("fill", "#1e293b")
+      .attr("pointer-events", "none");
+
+    textEl.selectAll("tspan")
+      .data(visibleLines)
+      .join("tspan")
+      .attr("x", 0)
+      .attr("dy", (_, i) => i === 0 ? -(visibleLines.length - 1) * lineH / 2 : lineH)
+      .text(t => t);
+  });
+}
+
+function showDetail(d) {
+  const needs = d.top_unmet_needs.length
+    ? "<ul>" + d.top_unmet_needs.map(n => `<li>${n}</li>`).join("") + "</ul>"
+    : "<span style='color:#475569'>No unmet needs recorded</span>";
+  const tags = d.communities.map(c => `<span class="detail-tag">r/${c}</span>`).join("");
+  document.getElementById("detail-panel").innerHTML = `
+    <div class="detail-title">${d.label}</div>
+    <div class="detail-label">Posts</div>${d.post_count}
+    <div class="detail-label">Dominant sentiment</div>${d.dominant_sentiment}
+    <div class="detail-label">Communities</div>${tags}
+    <div class="detail-label">Top unmet needs</div>${needs}
+  `;
+}
+
+drawBubbles();
+window.addEventListener("resize", drawBubbles);
+</script>
+</body>
+</html>
