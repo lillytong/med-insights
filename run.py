@@ -24,6 +24,8 @@ from pipeline.filter import llm_filter
 from pipeline.synthesizer import synthesize_all
 from pipeline.embedder import embed_summaries
 from store.chroma import upsert_summaries
+from pipeline.clusterer import cluster
+from dashboard.generate import generate as generate_dashboard
 from output.report import save_json, save_markdown
 from output.slack import notify
 
@@ -128,8 +130,14 @@ def main():
     # Cache processed IDs so reruns skip them
     _save_cache(processed_ids | {s.post_id for s in summaries})
 
+    # Cluster + dashboard
+    print("Clustering embeddings...", flush=True)
+    clusters = cluster()
+    dashboard_path = generate_dashboard(clusters)
+    print(f"  Dashboard: {dashboard_path}\n")
+
     # Notify Slack
-    notify(summaries, stats)
+    notify(summaries, stats, clusters)
 
     print("Done.")
     print(f"  JSON:     {json_path}")

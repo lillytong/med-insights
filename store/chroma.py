@@ -5,7 +5,7 @@ Persists to data/chroma/ on disk — survives restarts, accumulates across runs.
 
 Each record stored has:
   - id:         post_id (deduplication key)
-  - embedding:  512-dim Voyage vector
+  - embedding:  384-dim bge-small vector
   - document:   headline + clinical_problem + unmet_need (the text that was embedded)
   - metadata:   community, sentiment, specialty_tags, comment_count, timestamp, url
 
@@ -75,18 +75,10 @@ def query(text: str, n_results: int = 10, where: dict = None) -> list[dict]:
 
     Returns list of dicts with keys: id, document, metadata, distance
     """
-    from pipeline.embedder import embed_summaries
-    from pipeline.synthesizer import ThreadSummary
+    from sentence_transformers import SentenceTransformer
 
-    # Embed the query text using the same model
-    import os
-    import voyageai
-    from dotenv import load_dotenv
-    load_dotenv()
-
-    client = voyageai.Client(api_key=os.environ.get("VOYAGE_API_KEY"))
-    result = client.embed([text], model=config.EMBEDDING_MODEL, input_type="query")
-    query_embedding = result.embeddings[0]
+    model = SentenceTransformer(config.EMBEDDING_MODEL)
+    query_embedding = model.encode([text], normalize_embeddings=True)[0].tolist()
 
     collection = _get_collection()
 

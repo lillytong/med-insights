@@ -20,6 +20,7 @@ import requests
 from dotenv import load_dotenv
 
 from pipeline.synthesizer import ThreadSummary
+from pipeline.clusterer import ClusterResult
 
 load_dotenv()
 
@@ -34,7 +35,8 @@ def _sentiment_emoji(sentiment: str) -> str:
     }.get(sentiment, "💬")
 
 
-def _build_blocks(summaries: list[ThreadSummary], stats: dict, date_str: str) -> list[dict]:
+def _build_blocks(summaries: list[ThreadSummary], stats: dict, date_str: str,
+                  clusters: list["ClusterResult"] | None = None) -> list[dict]:
     # --- Specialty breakdown ---
     specialty_counts = Counter(s.community for s in summaries)
     specialty_line = "  ".join(
@@ -117,19 +119,44 @@ def _build_blocks(summaries: list[ThreadSummary], stats: dict, date_str: str) ->
             }
         })
 
+    # --- Cluster themes (if available) ---
+    if clusters:
+        real_clusters = [c for c in clusters if c.cluster_id != -1]
+        top_clusters = sorted(real_clusters, key=lambda c: c.post_count, reverse=True)[:5]
+        if top_clusters:
+            theme_lines = "\n".join(
+                f"• *{c.label}* — {c.post_count} posts, {c.dominant_sentiment}"
+                for c in top_clusters
+            )
+            blocks += [
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Top clusters* ({len(real_clusters)} total)\n{theme_lines}\n\n_Open `dashboard/index.html` to explore the full cluster map._",
+                    }
+                },
+            ]
+
     return blocks
 
 
-def notify(summaries: list[ThreadSummary], stats: dict) -> None:
+def notify(summaries: list[ThreadSummary], stats: dict,
+           clusters: list["ClusterResult"] | None = None) -> None:
     webhook_url = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
     if not webhook_url:
         print("  [slack] SLACK_WEBHOOK_URL not set — skipping notification")
         return
 
     date_str = datetime.now().strftime("%Y-%m-%d")
-    blocks = _build_blocks(summaries, stats, date_str)
+    blocks = _build_blocks(summaries, stats, date_str, clusters)
 
-    resp = requests.post(webhook_url, json={"blocks": blocks}, timeout=10)
+    resp = requests.post(webhook_url, json={
+        "username": "med-insights",
+        "icon_emoji": ":hospital:",
+        "blocks": blocks,
+    }, timeout=10)
     if resp.status_code == 200:
         print("  [slack] notification sent to #med-insights")
     else:
