@@ -1,0 +1,40 @@
+name: Weekly med-insights run
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 9am UTC (5am ET)
+  workflow_dispatch:        # Manual trigger from GitHub UI
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          POSTS_PER_SUBREDDIT: 100
+          TIME_FILTER: week
+        run: python -u run.py
+
+      - name: Commit updated data and dashboard
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+          git add data/synthesis/ data/filter/ data/processed_ids.json dashboard/index.html
+          git diff --staged --quiet || git commit -m "data: weekly run $(date +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push

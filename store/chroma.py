@@ -103,3 +103,36 @@ def query(text: str, n_results: int = 10, where: dict = None) -> list[dict]:
 def count() -> int:
     """Total number of insights stored."""
     return _get_collection().count()
+
+
+def restore_from_checkpoints() -> int:
+    """
+    Rebuild ChromaDB from all synthesis checkpoints in data/synthesis/.
+    Used at the start of CI runs where ChromaDB doesn't persist between jobs.
+    Skips if ChromaDB already has records (nothing to restore).
+    Returns number of records upserted (0 if already populated).
+    """
+    if count() > 0:
+        return 0
+
+    import json
+    from pathlib import Path
+    from pipeline.synthesizer import ThreadSummary
+    from pipeline.embedder import embed_summaries
+
+    synthesis_dir = Path(config.SYNTHESIS_DIR)
+    if not synthesis_dir.exists():
+        return 0
+
+    all_summaries = []
+    for checkpoint in sorted(synthesis_dir.glob("*.jsonl")):
+        for line in checkpoint.read_text().splitlines():
+            if line.strip():
+                all_summaries.append(ThreadSummary(**json.loads(line)))
+
+    if not all_summaries:
+        return 0
+
+    print(f"  [chroma] restoring {len(all_summaries)} summaries from checkpoints...")
+    all_summaries = embed_summaries(all_summaries)
+    return upsert_summaries(all_summaries)

@@ -33,9 +33,12 @@ SUBREDDITS = [
 ]
 
 # Scraper settings
-POSTS_PER_SUBREDDIT = 500
+# These can be overridden via environment variables for automated runs:
+#   POSTS_PER_SUBREDDIT=100 TIME_FILTER=week python run.py
+import os as _os
+POSTS_PER_SUBREDDIT = int(_os.environ.get("POSTS_PER_SUBREDDIT", 500))
 SORT = "top"
-TIME_FILTER = "year"        # top posts from the past year (hour/day/week/month/year/all)
+TIME_FILTER = _os.environ.get("TIME_FILTER", "year")
 TOP_COMMENTS = 10           # top-level comments only, by score
 MAX_COMMENT_WORDS = 150     # truncate each comment before sending to LLM
 
