@@ -1,3 +1,5 @@
+The diff shows that output files are now organized into date-based subdirectories (`data/output/{date}/`) instead of flat files in `data/output/`. This is a behavioral change visible to users, so the README needs updating in the Usage and Architecture sections where output paths are mentioned.
+
 # med-insights
 
 A tool that scrapes medical communities across social media platforms to surface what doctors are actually talking about — recurring clinical challenges, areas of interest, and day-to-day problems — then synthesizes the key insights.
@@ -21,13 +23,6 @@ Medical professionals congregate in online communities to discuss cases, share f
 - Synthesized summaries of key themes across communities
 - Ranked topics by frequency and engagement
 - Insights segmented by specialty or community
-
-## Use cases
-
-- Healthcare product teams identifying unmet clinical needs
-- Medical educators understanding where knowledge gaps exist
-- Researchers spotting areas of clinical uncertainty
-- Anyone trying to understand what problems doctors actually have
 
 ## Architecture
 
@@ -162,7 +157,7 @@ UnifiedPost(
 }
 ```
 
-**Step 8 — Report** (`data/output/insights_{date}.json`, one entry per summary)
+**Step 8 — Report** (`data/output/{date}/insights_{date}.json`, one entry per summary)
 ```json
 {
   "post_id": "1ktz4m2",
@@ -237,11 +232,11 @@ The pipeline will print progress at each stage:
   934 records upserted
 
 Done.
-  JSON:     data/output/insights_2026-05-07.json
-  Markdown: data/output/report_2026-05-07.md
+  JSON:     data/output/2026-05-07/insights_2026-05-07.json
+  Markdown: data/output/2026-05-07/report_2026-05-07.md
 ```
 
-Output files are written to `data/output/`. The Markdown report is the easiest to read.
+Output files are written to `data/output/{date}/`. The Markdown report is the easiest to read.
 
 ## Configuration
 
