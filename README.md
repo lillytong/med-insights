@@ -1,4 +1,11 @@
-The diff shows a significant structural change: cluster data (`cluster_labels.json` and `cluster_assignments.json`) is now persisted to `data/` instead of the ChromaDB directory, and cluster assignments are committed to the repo so they survive CI runs (ChromaDB rebuild now restores them). The GitHub Actions workflow is updated to commit these new files. This is behavioral change worth documenting.
+Looking at the diff, I can see two significant changes:
+
+1. `data/chroma/` is now committed to the repo (added to `git add` in the workflow), meaning ChromaDB is persisted directly rather than rebuilt from checkpoints
+2. The `restore_from_checkpoints()` call has been removed from `run.py`, confirming that ChromaDB is now persisted rather than rebuilt each run
+
+This is a behavioral change - the previous README described ChromaDB as not persisting between CI jobs and being rebuilt from synthesis checkpoints. Now ChromaDB itself is committed. The cluster data location also moved back to `data/chroma/` based on the new file at `data/chroma/cluster_labels.json`.
+
+The README needs to be updated to reflect this architectural change.
 
 # med-insights
 
@@ -245,8 +252,6 @@ The pipeline will print progress at each stage:
 ```
 === med-insights ===
 
-  Restored 834 records from synthesis checkpoints
-
 [1/5] Scraping Reddit...
   [cache] r/psychiatry — loading from disk
   ...
@@ -295,10 +300,10 @@ The pipeline runs automatically every Monday at 9am UTC (5am ET) via GitHub Acti
 
 - Uses the default `POSTS_PER_SUBREDDIT=100` and `TIME_FILTER=week` settings from `config.py`
 - Requires `ANTHROPIC_API_KEY` and (optionally) `SLACK_WEBHOOK_URL` set as repository secrets
-- Commits updated synthesis checkpoints, cluster labels, cluster assignments, and the refreshed dashboard back to `main`
+- Commits updated synthesis checkpoints, cluster labels, cluster assignments, the ChromaDB store, and the refreshed dashboard back to `main`
 - Can also be triggered manually from the Actions tab via **workflow_dispatch**
 
-ChromaDB doesn't persist between CI jobs, so at the start of each run the pipeline automatically rebuilds the vector store from all synthesis checkpoints committed to the repo before clustering and generating the dashboard. Cluster assignments (`data/cluster_assignments.json`) are also committed to the repo and restored into ChromaDB at rebuild time, so the dashboard reflects the latest clustering without needing to re-run UMAP/HDBSCAN from scratch.
+The ChromaDB vector store (`data/chroma/`) is committed to the repo and persists across CI runs, so each automated run picks up exactly where the last one left off — no rebuild from checkpoints required.
 
 ## Configuration
 
@@ -338,5 +343,4 @@ The pipeline has three layers of caching to avoid redundant work:
 
 | Layer | Location | What it skips |
 |---|---|---|
-| Scrape cache | `data/raw/{date}/{subreddit}.jsonl` | Re-hitting the Reddit API on same-day reruns |
-| Synthesis checkpoint | `data/synthesis/{date}.json
+| Scrape cache | `data/raw/{date}/{su
